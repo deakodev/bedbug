@@ -1,0 +1,44 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+		},
+		{
+			"path": "D:\\odin\\odin\\core",
+		},
+		{
+			"path": "D:\\odin\\odin\\vendor\\glfw",
+		},
+		{
+			"path": "D:\\odin\\odin\\vendor\\vulkan",
+		},
+		{
+			"path": "D:\\odin\\examples",
+		},
+	],
+	"build_systems":
+	[
+		{
+			"name": "Futon Debug",
+			"working_dir": "$project_path",
+			"file_regex": "^(.+)\\(([0-9]+):([0-9]+)\\) (.+)$",
+			"windows": {
+				"shell_cmd": "scripts\\futon.bat",
+			},
+		}
+	]
+	,
+	"settings":
+	{
+		"lsp_format_on_save": true,
+		"auto_complete": true,
+		"LSP":
+		{
+			"odin":
+			{
+				"enabled": true,
+			},
+		},
+	},
+}

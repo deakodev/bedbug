@@ -1,0 +1,32 @@
+{
+	"$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
+	"collections": [
+		{ "name": "bedbug", "path": "." },
+		// { "name": "core", "path": "core" },
+		// { "name": "futon", "path": "futon" },
+		// { "name": "game", "path": "game" },
+		// { "name": "renderer", "path": "modules\\renderer" },
+	],
+	"enable_semantic_tokens": true,
+	"enable_document_symbols": true,
+	"enable_hover": true,
+	"enable_snippets": true,
+	"enable_references": true,
+	"profile": "default",
+	"profiles": [
+		{ 
+			"name": "default", 
+			"checker_path": ["bedbug", "core", "futon", "game", "modules\\renderer"]
+		},
+		{ 
+			"name": "linux_profile", 
+			"os": "linux", 
+			"checker_path": ["bedbug", "core", "futon", "game", "modules/renderer"]
+		},
+		{ 
+			"name": "windows_profile", 
+			"os": "windows", 
+			"checker_path": ["bedbug", "core", "futon", "game", "modules\\renderer"]
+		}
+	]
+}
