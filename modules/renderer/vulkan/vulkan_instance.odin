@@ -2,7 +2,7 @@ package vulkan_backend
 
 import "base:runtime"
 import bb "bedbug:core"
-// import "bedbug:vendor/vma"
+import "bedbug:vendor/vma"
 import "core:log"
 import "core:slice"
 import "core:strings"
@@ -65,6 +65,25 @@ vulkan_instance_setup :: proc(instance: ^VulkanInstance) -> (ok: bool) {
 	}
 
 	vk_ok(glfw.CreateWindowSurface(instance.handle, bb.core().window.handle, nil, &instance.surface))
+
+	vma_vulkan_functions := vma.create_vulkan_functions()
+
+	// allocator_create_info: vma.Allocator_Create_Info = {
+	// 	flags              = {.Buffer_Device_Address},
+	// 	instance           = instance,
+	// 	vulkan_api_version = 1003000, // 1.3
+	// 	physical_device    = physical_device,
+	// 	device             = device,
+	// 	vulkan_functions   = &vma_vulkan_functions,
+	// }
+
+	// allocator: vma.Allocator = ---
+	// if res := vma.create_allocator(allocator_create_info, &allocator); res != .SUCCESS {
+	// 	log.errorf("Failed to Create Vulkan Memory Allocator: [%v]", res)
+	// 	return
+	// }
+
+	// defer vma.destroy_allocator(allocator)
 
 	return true
 }
