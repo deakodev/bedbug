@@ -15,8 +15,8 @@ Pipeline :: struct {
 	layout: vk.PipelineLayout,
 }
 
-PBR_VERTEX :: #load("../triangle.vert.spv")
-PBR_FRAGMENT :: #load("../triangle.frag.spv")
+// PBR_VERTEX :: #load("../triangle.vert.spv")
+// PBR_FRAGMENT :: #load("../triangle.frag.spv")
 
 ShaderData :: struct {
 	projection: bb.mat4,
@@ -44,66 +44,66 @@ vulkan_pipeline_setup :: proc(
 	pipelines: [PipelineType]Pipeline,
 ) {
 
-	cache_info := vk.PipelineCacheCreateInfo {
-		sType = .PIPELINE_CACHE_CREATE_INFO,
-	}
+	// cache_info := vk.PipelineCacheCreateInfo {
+	// 	sType = .PIPELINE_CACHE_CREATE_INFO,
+	// }
 
-	vk_ok(vk.CreatePipelineCache(device.handle, &cache_info, nil, &g_pipeline_cache))
+	// vk_ok(vk.CreatePipelineCache(device.handle, &cache_info, nil, &g_pipeline_cache))
 
-	pipeline_layout_info := vk.PipelineLayoutCreateInfo {
-		sType          = .PIPELINE_LAYOUT_CREATE_INFO,
-		setLayoutCount = 1,
-		pSetLayouts    = &g_descriptor_set_layout,
-	}
-	vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
+	// pipeline_layout_info := vk.PipelineLayoutCreateInfo {
+	// 	sType          = .PIPELINE_LAYOUT_CREATE_INFO,
+	// 	setLayoutCount = 1,
+	// 	pSetLayouts    = &g_descriptor_set_layout,
+	// }
+	// vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
 
-	triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
-	triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
+	// triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
+	// triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
 
-	triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
-	triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
-	triangle_stages[1] = shader_stage(.FRAGMENT, triangle_fragment_shader)
+	// triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
+	// triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
+	// triangle_stages[1] = shader_stage(.FRAGMENT, triangle_fragment_shader)
 
-	vertex_input_bindings := make([]vk.VertexInputBindingDescription, 1)
-	vertex_input_bindings[0] = {
-		binding   = 0,
-		stride    = size_of(Vertex),
-		inputRate = .VERTEX,
-	}
+	// vertex_input_bindings := make([]vk.VertexInputBindingDescription, 1)
+	// vertex_input_bindings[0] = {
+	// 	binding   = 0,
+	// 	stride    = size_of(Vertex),
+	// 	inputRate = .VERTEX,
+	// }
 
-	triangle_vertex_input_attributes := make([]vk.VertexInputAttributeDescription, 2)
-	triangle_vertex_input_attributes[0] = {
-		location = 0,
-		binding  = 0,
-		format   = .R32G32B32_SFLOAT,
-		offset   = u32(offset_of(Vertex, position)),
-	}
-	triangle_vertex_input_attributes[1] = {
-		location = 1,
-		binding  = 0,
-		format   = .R32G32B32_SFLOAT,
-		offset   = u32(offset_of(Vertex, color)),
-	}
+	// triangle_vertex_input_attributes := make([]vk.VertexInputAttributeDescription, 2)
+	// triangle_vertex_input_attributes[0] = {
+	// 	location = 0,
+	// 	binding  = 0,
+	// 	format   = .R32G32B32_SFLOAT,
+	// 	offset   = u32(offset_of(Vertex, position)),
+	// }
+	// triangle_vertex_input_attributes[1] = {
+	// 	location = 1,
+	// 	binding  = 0,
+	// 	format   = .R32G32B32_SFLOAT,
+	// 	offset   = u32(offset_of(Vertex, color)),
+	// }
 
-	triangle_states := PipelineStates {
-		vertex_input   = vertex_input(vertex_input_bindings, triangle_vertex_input_attributes),
-		input_assembly = input_assembly(),
-		rasterization  = rasterization(),
-		color_blend    = color_blend(.DISABLED),
-		multisample    = multisample({._1}),
-		depth_stencil  = depth_stencil(.DEPTH_TEST_ENABLED),
-	}
+	// triangle_states := PipelineStates {
+	// 	vertex_input   = vertex_input(vertex_input_bindings, triangle_vertex_input_attributes),
+	// 	input_assembly = input_assembly(),
+	// 	rasterization  = rasterization(),
+	// 	color_blend    = color_blend(.DISABLED),
+	// 	multisample    = multisample({._1}),
+	// 	depth_stencil  = depth_stencil(.DEPTH_TEST_ENABLED),
+	// }
 
-	pipelines[.TRIANGLE] = pipeline_compose(
-		device.handle,
-		swapchain,
-		triangle_states,
-		triangle_stages,
-		g_pipeline_layout,
-	)
+	// pipelines[.TRIANGLE] = pipeline_compose(
+	// 	device.handle,
+	// 	swapchain,
+	// 	triangle_states,
+	// 	triangle_stages,
+	// 	g_pipeline_layout,
+	// )
 
-	vk.DestroyShaderModule(device.handle, triangle_vertex_shader, nil)
-	vk.DestroyShaderModule(device.handle, triangle_fragment_shader, nil)
+	// vk.DestroyShaderModule(device.handle, triangle_vertex_shader, nil)
+	// vk.DestroyShaderModule(device.handle, triangle_fragment_shader, nil)
 
 	return pipelines
 }

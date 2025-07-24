@@ -1,3 +1,6 @@
 [submodule "vendor/vma"]
 	path = vendor/vma
 	url = https://github.com/Capati/odin-vma.git
+[submodule "vendor/imgui"]
+	path = vendor/imgui
+	url = https://github.com/Capati/odin-imgui.git
