@@ -28,7 +28,13 @@ setup :: proc(renderer: ^BbRenderer) -> (ok: bool) {
 	return true
 }
 
-frame_draw :: proc(renderer: ^BbRenderer, current_frame: u32) -> u32 {
+cleanup :: proc(renderer: ^BbRenderer) {
+
+	log.info("Cleaning up renderer...")
+	backend.cleanup(&renderer.backend)
+}
+
+frame_draw :: proc(renderer: ^BbRenderer) {
 
 	aspect := f32(renderer.backend.swapchain.extent.width) / f32(renderer.backend.swapchain.extent.height)
 
@@ -48,7 +54,7 @@ frame_draw :: proc(renderer: ^BbRenderer, current_frame: u32) -> u32 {
 		model      = bb.mat4(1.0),
 	}
 
-	return backend.frame_draw(&renderer.backend, &shader_data, current_frame)
+	backend.frame_draw(&renderer.backend, &shader_data)
 }
 
 ShaderData :: backend.ShaderData

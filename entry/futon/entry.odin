@@ -28,10 +28,15 @@ main :: proc() {
 
 	current_frame: u32 = 0
 	run: for bedbug.should_run() {
-		free_all(context.temp_allocator)
+
 		bedbug.update()
 
-		current_frame = bedbug.frame_draw(bedbug_ptr.renderer, current_frame)
+		if bedbug_ptr.core.window.iconified {
+			bedbug.wait_events()
+			continue
+		}
+
+		bedbug.frame_draw(bedbug_ptr.renderer)
 		// futon.update()
 		// game.update()
 
@@ -66,6 +71,7 @@ main :: proc() {
 			}
 		}
 
+		free_all(context.temp_allocator)
 		bedbug.allocator_check()
 	}
 
@@ -77,5 +83,6 @@ main :: proc() {
 	bedbug.dynlib_unload(futon_lib)
 	delete(futon_lib.generations)
 
-	bedbug.cleanup()
+	bedbug.cleanup(bedbug_ptr)
+	free(bedbug_ptr)
 }

@@ -10,15 +10,15 @@ import "vendor:glfw"
 import vk "vendor:vulkan"
 
 VALIDATION_ENABLED :: #config(VALIDATION_ENABLED, ODIN_DEBUG)
-VALIDATION_LAYERS :: []cstring{"VK_LAYER_KHRONOS_validation"} //"VK_LAYER_LUNARG_api_dump"
+VALIDATION_LAYERS :: []cstring{"VK_LAYER_KHRONOS_validation", "VK_LAYER_LUNARG_monitor"} //"VK_LAYER_LUNARG_api_dump"
 
-VulkanInstance :: struct {
+Instance :: struct {
 	handle:    vk.Instance,
 	messenger: vk.DebugUtilsMessengerEXT,
 	surface:   vk.SurfaceKHR,
 }
 
-vulkan_instance_setup :: proc(instance: ^VulkanInstance) -> (ok: bool) {
+vulkan_instance_setup :: proc(self: ^Vulkan) {
 
 	instance_layers := VALIDATION_LAYERS when VALIDATION_ENABLED else []cstring{}
 	instance_extensions := slice.clone_to_dynamic(INSTANCE_EXTENSIONS, context.temp_allocator)
@@ -57,35 +57,23 @@ vulkan_instance_setup :: proc(instance: ^VulkanInstance) -> (ok: bool) {
 	create_info.pNext = &messenger_info
 
 	vk.load_proc_addresses_global(rawptr(glfw.GetInstanceProcAddress))
-	vk_ok(vk.CreateInstance(&create_info, nil, &instance.handle))
-	vk.load_proc_addresses_instance(instance.handle)
+	vk_ok(vk.CreateInstance(&create_info, nil, &self.instance.handle))
+	vk.load_proc_addresses_instance(self.instance.handle)
 
 	when VALIDATION_ENABLED {
-		vk_ok(vk.CreateDebugUtilsMessengerEXT(instance.handle, &messenger_info, nil, &instance.messenger))
+		vk_ok(vk.CreateDebugUtilsMessengerEXT(self.instance.handle, &messenger_info, nil, &self.instance.messenger))
 	}
 
-	vk_ok(glfw.CreateWindowSurface(instance.handle, bb.core().window.handle, nil, &instance.surface))
+	vk_ok(glfw.CreateWindowSurface(self.instance.handle, bb.core().window.handle, nil, &self.instance.surface))
+}
 
-	vma_vulkan_functions := vma.create_vulkan_functions()
+vulkan_instance_cleanup :: proc(self: ^Vulkan) {
 
-	// allocator_create_info: vma.Allocator_Create_Info = {
-	// 	flags              = {.Buffer_Device_Address},
-	// 	instance           = instance,
-	// 	vulkan_api_version = 1003000, // 1.3
-	// 	physical_device    = physical_device,
-	// 	device             = device,
-	// 	vulkan_functions   = &vma_vulkan_functions,
-	// }
-
-	// allocator: vma.Allocator = ---
-	// if res := vma.create_allocator(allocator_create_info, &allocator); res != .SUCCESS {
-	// 	log.errorf("Failed to Create Vulkan Memory Allocator: [%v]", res)
-	// 	return
-	// }
-
-	// defer vma.destroy_allocator(allocator)
-
-	return true
+	vk.DestroySurfaceKHR(self.instance.handle, self.instance.surface, nil)
+	when VALIDATION_ENABLED {
+		vk.DestroyDebugUtilsMessengerEXT(self.instance.handle, self.instance.messenger, nil)
+	}
+	vk.DestroyInstance(self.instance.handle, nil)
 }
 
 vulkan_message :: proc "system" (

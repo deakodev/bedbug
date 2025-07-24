@@ -1,25 +1,17 @@
 package vulkan_backend
 
 import bb "bedbug:core"
+import "bedbug:vendor/vma"
 import "core:log"
 import "vendor:glfw"
 import vk "vendor:vulkan"
 
-GraphicsDeviceImage :: struct {
-	image:  vk.Image,
-	view:   vk.ImageView,
-	memory: vk.DeviceMemory,
-	format: vk.Format,
-}
-
-
 GraphicsTarget :: struct {
-	depth:        GraphicsDeviceImage,
+	// depth:        GraphicsDeviceImage,
 	sample_count: vk.SampleCountFlags,
 }
 
-
-VulkanSwapchain :: struct {
+Swapchain :: struct {
 	handle: vk.SwapchainKHR,
 	images: []vk.Image,
 	views:  []vk.ImageView,
@@ -28,16 +20,15 @@ VulkanSwapchain :: struct {
 	target: GraphicsTarget,
 }
 
+vulkan_swapchain_setup :: proc(self: ^Vulkan) {
 
-vulkan_swapchain_setup :: proc(surface: vk.SurfaceKHR, device: VulkanDevice) -> (swapchain: VulkanSwapchain) {
-
-	support, result := swapchain_support_query(device.physical, surface, context.temp_allocator)
+	support, result := swapchain_support_query(self.device.physical, self.instance.surface, context.temp_allocator)
 	if result != .SUCCESS {
 		log.panicf("failed to query swapchain support: %v", result)
 	}
 
-	swapchain.format = swapchain_surface_format_select(support.formats)
-	swapchain.extent = swapchain_extent_select(support.capabilities)
+	self.swapchain.format = swapchain_surface_format_select(support.formats)
+	self.swapchain.extent = swapchain_extent_select(support.capabilities)
 	present_mode := swapchain_present_mode_select(support.presentModes)
 
 	image_count := support.capabilities.minImageCount + 1
@@ -54,13 +45,13 @@ vulkan_swapchain_setup :: proc(surface: vk.SurfaceKHR, device: VulkanDevice) -> 
 
 	create_info := vk.SwapchainCreateInfoKHR {
 		sType                 = .SWAPCHAIN_CREATE_INFO_KHR,
-		surface               = surface,
+		surface               = self.instance.surface,
 		minImageCount         = image_count,
-		imageFormat           = swapchain.format.format,
-		imageColorSpace       = swapchain.format.colorSpace,
-		imageExtent           = swapchain.extent,
+		imageFormat           = self.swapchain.format.format,
+		imageColorSpace       = self.swapchain.format.colorSpace,
+		imageExtent           = self.swapchain.extent,
 		imageArrayLayers      = 1,
-		imageUsage            = {.COLOR_ATTACHMENT},
+		imageUsage            = {.COLOR_ATTACHMENT, .TRANSFER_DST},
 		preTransform          = pre_transform,
 		compositeAlpha        = {.OPAQUE},
 		queueFamilyIndexCount = 0,
@@ -69,18 +60,25 @@ vulkan_swapchain_setup :: proc(surface: vk.SurfaceKHR, device: VulkanDevice) -> 
 		clipped               = true,
 	}
 
-	vk_ok(vk.CreateSwapchainKHR(device.handle, &create_info, nil, &swapchain.handle))
+	vk_ok(vk.CreateSwapchainKHR(self.device.handle, &create_info, nil, &self.swapchain.handle))
 
-	swapchain.images = make([]vk.Image, int(image_count))
-	swapchain.views = make([]vk.ImageView, int(image_count))
-	vk_ok(vk.GetSwapchainImagesKHR(device.handle, swapchain.handle, &image_count, raw_data(swapchain.images)))
+	self.swapchain.images = make([]vk.Image, int(image_count))
+	self.swapchain.views = make([]vk.ImageView, int(image_count))
+	vk_ok(
+		vk.GetSwapchainImagesKHR(
+			self.device.handle,
+			self.swapchain.handle,
+			&image_count,
+			raw_data(self.swapchain.images),
+		),
+	)
 
-	for image, index in swapchain.images {
+	for image, index in self.swapchain.images {
 		view_info := vk.ImageViewCreateInfo {
 			sType = .IMAGE_VIEW_CREATE_INFO,
 			image = image,
 			viewType = .D2,
-			format = swapchain.format.format,
+			format = self.swapchain.format.format,
 			subresourceRange = {
 				aspectMask = {.COLOR},
 				baseMipLevel = 0,
@@ -89,27 +87,34 @@ vulkan_swapchain_setup :: proc(surface: vk.SurfaceKHR, device: VulkanDevice) -> 
 				layerCount = 1,
 			},
 		}
-		vk_ok(vk.CreateImageView(device.handle, &view_info, nil, &swapchain.views[index]))
+		vk_ok(vk.CreateImageView(self.device.handle, &view_info, nil, &self.swapchain.views[index]))
+
+		resource_stack_push(&self.device.cleanup_stack, self.swapchain.views[index])
 	}
 
-	swapchain.target.sample_count = {._1}
+	self.swapchain.target.sample_count = {._1}
 
-	image_extent := vk.Extent3D{swapchain.extent.width, swapchain.extent.height, 1}
-	depth_format := depth_format(device.physical, true)
+	image_extent := vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1}
+	depth_format := depth_format(self.device.physical, true)
 	depth_usage := vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT}
 
-	swapchain.target.depth = device_image_allocate(device, depth_format, depth_usage, image_extent)
+	// swapchain.target.depth = device_image_allocate(device, depth_format, depth_usage, image_extent)
 
-	return swapchain
 }
 
+vulkan_swapchain_cleanup :: proc(self: ^Vulkan) {
+
+	delete(self.swapchain.views)
+	delete(self.swapchain.images)
+
+	vk.DestroySwapchainKHR(self.device.handle, self.swapchain.handle, nil)
+}
 
 Swapchain_Support :: struct {
 	capabilities: vk.SurfaceCapabilitiesKHR,
 	formats:      []vk.SurfaceFormatKHR,
 	presentModes: []vk.PresentModeKHR,
 }
-
 
 swapchain_support_query :: proc(
 	device: vk.PhysicalDevice,
@@ -119,9 +124,8 @@ swapchain_support_query :: proc(
 	support: Swapchain_Support,
 	result: vk.Result,
 ) {
-	// NOTE: looks like a wrong binding with the third arg being a multipointer.
-	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &support.capabilities) or_return
 
+	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &support.capabilities) or_return
 
 	{
 		count: u32
@@ -130,7 +134,6 @@ swapchain_support_query :: proc(
 		support.formats = make([]vk.SurfaceFormatKHR, count, allocator)
 		vk.GetPhysicalDeviceSurfaceFormatsKHR(device, surface, &count, raw_data(support.formats)) or_return
 	}
-
 
 	{
 		count: u32
@@ -146,8 +149,13 @@ swapchain_support_query :: proc(
 
 swapchain_surface_format_select :: proc(formats: []vk.SurfaceFormatKHR) -> vk.SurfaceFormatKHR {
 
+	desired := vk.SurfaceFormatKHR {
+		format     = .B8G8R8A8_SRGB,
+		colorSpace = .SRGB_NONLINEAR,
+	}
+
 	for format in formats {
-		if format.format == .B8G8R8A8_SRGB && format.colorSpace == .SRGB_NONLINEAR {
+		if format.format == desired.format && format.colorSpace == desired.colorSpace {
 			return format
 		}
 	}

@@ -69,3 +69,7 @@ window_should_close :: proc() -> bool {
 
 	return bool(glfw.WindowShouldClose(core().window.handle))
 }
+
+wait_events :: proc() {
+	glfw.WaitEvents()
+}

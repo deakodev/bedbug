@@ -1,13 +1,11 @@
 @echo off
+setLocal enableDelayedExpansion
 
-set EXE=futon.exe
-set EXE_RUNNING=false
+set "EXE=futon.exe"
+set "EXE_RUNNING=false"
 
-set BUILD=%CD%\\scripts\\build.bat
-set BUILD_DIR=%CD%\\build\\win32\\debug
-
-set SHADER_DIR=%CD%\\modules\\renderer
-set SHADER_BUILD_DIR=%CD%\\modules\\renderer
+set "BUILD=%CD%\scripts\build.bat"
+set "BUILD_DIR=%CD%\build\win32\debug"
 
 for /F %%x in ('tasklist /NH /FI "IMAGENAME eq %EXE%"') do if %%x == %EXE% set EXE_RUNNING=true
 
@@ -15,17 +13,7 @@ if %EXE_RUNNING% == false (
     del /q /s %BUILD_DIR% >nul 2>nul
 )
 
-echo [Compiling shaders...]
-if not exist %SHADER_BUILD_DIR% mkdir %SHADER_BUILD_DIR%
-for %%f in (%SHADER_DIR%\*.vert) do (
-    glslc "%%f" -o "%SHADER_BUILD_DIR%\%%~nf.vert.spv"
-)
-for %%f in (%SHADER_DIR%\*.frag) do (
-    glslc "%%f" -o "%SHADER_BUILD_DIR%\%%~nf.frag.spv"
-)
-for %%f in (%SHADER_DIR%\*.comp) do (
-    glslc "%%f" -o "%SHADER_BUILD_DIR%\%%~nf.comp.spv"
-)
+call "scripts\slangc.bat"
 
 echo [Building debug game.dll...]
 call %BUILD% debug game.dll
@@ -54,6 +42,8 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo [Running debug futon.exe...]
-start cmd /c "%BUILD_DIR%\\%EXE% & echo. & echo [Press any key to close...] & pause > nul"
+start cmd /c "%BUILD_DIR%\%EXE% & echo. & echo [Press any key to close...] & pause > nul"
 
+endLocal
 exit /b %ERRORLEVEL%
+

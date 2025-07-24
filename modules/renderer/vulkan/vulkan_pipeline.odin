@@ -7,10 +7,12 @@ import vk "vendor:vulkan"
 
 PipelineType :: enum {
 	TRIANGLE = 0,
+	BACKGROUND,
 }
 
-GraphicsPipeline :: struct {
+Pipeline :: struct {
 	handle: vk.Pipeline,
+	layout: vk.PipelineLayout,
 }
 
 PBR_VERTEX :: #load("../triangle.vert.spv")
@@ -35,11 +37,11 @@ g_pipeline_cache: vk.PipelineCache
 g_pipeline_layout: vk.PipelineLayout
 
 vulkan_pipeline_setup :: proc(
-	instance: VulkanInstance,
-	device: VulkanDevice,
-	swapchain: VulkanSwapchain,
+	instance: Instance,
+	device: Device,
+	swapchain: Swapchain,
 ) -> (
-	pipelines: [PipelineType]GraphicsPipeline,
+	pipelines: [PipelineType]Pipeline,
 ) {
 
 	cache_info := vk.PipelineCacheCreateInfo {
@@ -55,8 +57,8 @@ vulkan_pipeline_setup :: proc(
 	}
 	vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
 
-	triangle_vertex_shader := shader_module(device.handle, PBR_VERTEX)
-	triangle_fragment_shader := shader_module(device.handle, PBR_FRAGMENT)
+	triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
+	triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
 
 	triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
 	triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
@@ -108,12 +110,12 @@ vulkan_pipeline_setup :: proc(
 
 pipeline_compose :: proc(
 	device: vk.Device,
-	swapchain: VulkanSwapchain,
+	swapchain: Swapchain,
 	states: PipelineStates,
 	stages: []vk.PipelineShaderStageCreateInfo,
 	layout: vk.PipelineLayout,
 ) -> (
-	pipeline: GraphicsPipeline,
+	pipeline: Pipeline,
 ) {
 
 	vertex_input_state := states.vertex_input
@@ -141,8 +143,8 @@ pipeline_compose :: proc(
 		sType                   = .PIPELINE_RENDERING_CREATE_INFO,
 		colorAttachmentCount    = 1,
 		pColorAttachmentFormats = &color_format,
-		depthAttachmentFormat   = swapchain.target.depth.format,
-		stencilAttachmentFormat = swapchain.target.depth.format,
+		// depthAttachmentFormat   = swapchain.target.depth.format,
+		// stencilAttachmentFormat = swapchain.target.depth.format,
 	}
 
 	pipeline_info := vk.GraphicsPipelineCreateInfo {
@@ -176,17 +178,12 @@ shader_stage :: proc(stage: vk.ShaderStageFlag, module: vk.ShaderModule) -> vk.P
 	}
 }
 
-shader_module :: proc(device: vk.Device, code: []byte) -> (module: vk.ShaderModule) {
-
-	log.assert(len(code) % 4 == 0, "SPIR-V bytecode must be 4-byte aligned")
-
-	code_u32 := slice.reinterpret([]u32, code)
-	log.assert(len(code_u32) * 4 == len(code), "Reinterpreted SPIR-V size mismatch")
+shader_module_make :: proc(device: vk.Device, code: []byte) -> (module: vk.ShaderModule) {
 
 	create_info := vk.ShaderModuleCreateInfo {
 		sType    = .SHADER_MODULE_CREATE_INFO,
 		codeSize = len(code),
-		pCode    = raw_data(code_u32),
+		pCode    = cast(^u32)raw_data(code),
 	}
 
 	vk_ok(vk.CreateShaderModule(device, &create_info, nil, &module))
@@ -316,4 +313,42 @@ depth_stencil :: proc(mode: DepthStencilMode) -> vk.PipelineDepthStencilStateCre
 	}
 
 	return {} // fallback, shouldn't happen
+}
+
+background_pipelines_setup :: proc(self: ^Vulkan) {
+
+	layout_info := vk.PipelineLayoutCreateInfo {
+		sType          = .PIPELINE_LAYOUT_CREATE_INFO,
+		pSetLayouts    = &self.frames[0].draw_image.descriptor.layout,
+		setLayoutCount = 1,
+	}
+
+	vk_ok(vk.CreatePipelineLayout(self.device.handle, &layout_info, nil, &self.pipelines[.BACKGROUND].layout))
+
+	GRADIENT_COMP_SPV :: #load("../shaders/bin/gradient.comp.spv")
+	gradient_shader := shader_module_make(self.device.handle, GRADIENT_COMP_SPV)
+	defer vk.DestroyShaderModule(self.device.handle, gradient_shader, nil)
+
+	stage_info := vk.PipelineShaderStageCreateInfo {
+		sType  = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+		stage  = {.COMPUTE},
+		module = gradient_shader,
+		pName  = "main",
+	}
+
+	pipeline_info := vk.ComputePipelineCreateInfo {
+		sType  = .COMPUTE_PIPELINE_CREATE_INFO,
+		layout = self.pipelines[.BACKGROUND].layout,
+		stage  = stage_info,
+	}
+
+	vk_ok(
+		vk.CreateComputePipelines(self.device.handle, 0, 1, &pipeline_info, nil, &self.pipelines[.BACKGROUND].handle),
+	)
+
+	resource_stack_push(
+		&self.device.cleanup_stack,
+		self.pipelines[.BACKGROUND].layout,
+		self.pipelines[.BACKGROUND].handle,
+	)
 }

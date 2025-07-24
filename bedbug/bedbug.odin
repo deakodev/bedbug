@@ -36,11 +36,15 @@ setup :: proc(bedbug: ^Bedbug) -> (ok: bool) {
 	return true
 }
 
-cleanup :: proc() {
+cleanup :: proc(bedbug: ^Bedbug) {
 
 	log.info("cleaning up bedbug...")
+
+	renderer.cleanup(bedbug.renderer)
+	free(bedbug.renderer)
+
 	core.window_cleanup()
-	core.allocator_cleanup()
+	free(bedbug.core)
 }
 
 update :: proc() {
@@ -64,6 +68,8 @@ dynlib_load :: core.dynlib_load
 dynlib_unload :: core.dynlib_unload
 dynlib_generation :: core.dynlib_generation
 dynlib_should_reload :: core.dynlib_should_reload
+
+wait_events :: core.wait_events
 
 //temp
 frame_draw :: renderer.frame_draw
