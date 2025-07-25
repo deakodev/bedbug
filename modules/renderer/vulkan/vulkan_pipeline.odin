@@ -352,3 +352,4 @@ background_pipelines_setup :: proc(self: ^Vulkan) {
 		self.pipelines[.BACKGROUND].handle,
 	)
 }
+

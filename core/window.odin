@@ -28,6 +28,7 @@ window_setup :: proc(title: cstring, width: i32, height: i32) -> (window: Window
 
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
 	glfw.WindowHint(glfw.RESIZABLE, glfw.TRUE)
+	glfw.WindowHint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
 
 	window.handle = glfw.CreateWindow(width, height, title, nil, nil)
 	if window.handle == nil {

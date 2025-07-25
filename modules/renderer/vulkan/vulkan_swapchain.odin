@@ -150,7 +150,7 @@ swapchain_support_query :: proc(
 swapchain_surface_format_select :: proc(formats: []vk.SurfaceFormatKHR) -> vk.SurfaceFormatKHR {
 
 	desired := vk.SurfaceFormatKHR {
-		format     = .B8G8R8A8_SRGB,
+		format     = .B8G8R8A8_UNORM,
 		colorSpace = .SRGB_NONLINEAR,
 	}
 
@@ -163,18 +163,17 @@ swapchain_surface_format_select :: proc(formats: []vk.SurfaceFormatKHR) -> vk.Su
 	return formats[0] // fallback
 }
 
-
 swapchain_present_mode_select :: proc(modes: []vk.PresentModeKHR) -> vk.PresentModeKHR {
 
-	for mode in modes {
-		if mode == .MAILBOX {
-			return .MAILBOX
-		}
-	}
+	// todo: decide later
+	// for mode in modes {
+	// 	if mode == .MAILBOX {
+	// 		return .MAILBOX
+	// 	}
+	// }
 
 	return .FIFO // fallback
 }
-
 
 swapchain_extent_select :: proc(capabilities: vk.SurfaceCapabilitiesKHR) -> vk.Extent2D {
 
@@ -183,10 +182,10 @@ swapchain_extent_select :: proc(capabilities: vk.SurfaceCapabilitiesKHR) -> vk.E
 	}
 
 	width, height := glfw.GetFramebufferSize(bb.core().window.handle)
-	return (vk.Extent2D {
-				width = clamp(u32(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
-				height = clamp(u32(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height),
-			})
+	return {
+		width = clamp(u32(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+		height = clamp(u32(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height),
+	}
 }
 
 depth_format :: proc(physical_device: vk.PhysicalDevice, check_sampling_support: bool) -> vk.Format {

@@ -3,6 +3,11 @@ package entry
 import "bedbug:bedbug"
 import "core:log"
 
+//temp
+import im "bedbug:vendor/imgui"
+import im_glfw "bedbug:vendor/imgui/imgui_impl_glfw"
+import im_vk "bedbug:vendor/imgui/imgui_impl_vulkan"
+
 main :: proc() {
 
 	when ODIN_DEBUG {
@@ -33,8 +38,19 @@ main :: proc() {
 
 		if bedbug_ptr.core.window.iconified {
 			bedbug.wait_events()
-			continue
+			continue run
 		}
+
+		// ImGUi new frame
+		im_glfw.new_frame()
+		im_vk.new_frame()
+		im.new_frame()
+
+		// Some ImGUi UI to test
+		im.show_demo_window()
+
+		// Make ImGUi calculate internal draw structures
+		im.render()
 
 		bedbug.frame_draw(bedbug_ptr.renderer)
 		// futon.update()
