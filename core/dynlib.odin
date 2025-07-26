@@ -28,25 +28,25 @@ when ODIN_DEBUG {
 
 Futon_Symbols :: struct {
 	handle:  dynlib.Library,
-	setup:   proc(),
+	setup:   proc(imgui: rawptr),
 	cleanup: proc(),
-	update:  proc(),
+	update:  proc(bedbug: rawptr),
 }
 
 
 Game_Symbols :: struct {
-	handle:          dynlib.Library,
-	setup:           proc(),
-	cleanup:         proc(),
-	update:          proc(),
-	memory:          proc() -> rawptr,
-	memory_size:     proc() -> int,
-	hot_reloaded:    proc(mem: rawptr),
+	handle:       dynlib.Library,
+	setup:        proc(),
+	cleanup:      proc(),
+	update:       proc(),
+	memory:       proc() -> rawptr,
+	memory_size:  proc() -> int,
+	hot_reloaded: proc(mem: rawptr),
 }
 
 
 Dynlib :: struct(T: typeid) {
-	name: string,
+	name:        string,
 	generations: [dynamic]T,
 	updated_at:  os.File_Time,
 }
@@ -148,8 +148,10 @@ dynlib_generation :: proc(lib: ^Dynlib($T), gen_index: int = -1) -> T {
 
 dynlib_name :: proc($T: typeid) -> string {
 	switch typeid_of(T) {
-	case typeid_of(Futon_Symbols): return "futon"
-	case typeid_of(Game_Symbols): return "game"
+	case typeid_of(Futon_Symbols):
+		return "futon"
+	case typeid_of(Game_Symbols):
+		return "game"
 	}
 
 	return "unknown"

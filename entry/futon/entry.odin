@@ -23,9 +23,11 @@ main :: proc() {
 		panic("failed to initialize bedbug.")
 	}
 
+	imgui := im.get_current_context()
+
 	futon_lib := bedbug.dynlib_load(bedbug.Futon_Symbols)
 	futon := bedbug.dynlib_generation(futon_lib)
-	futon.setup()
+	futon.setup(imgui)
 
 	game_lib := bedbug.dynlib_load(bedbug.Game_Symbols)
 	game := bedbug.dynlib_generation(game_lib)
@@ -41,17 +43,18 @@ main :: proc() {
 			continue run
 		}
 
-		// ImGUi new frame
+		// // ImGUi new frame
 		im_glfw.new_frame()
 		im_vk.new_frame()
 		im.new_frame()
 
-		// Some ImGUi UI to test
-		im.show_demo_window()
+		// // Some ImGUi UI to test
+		// im.show_demo_window()
 
-		// Make ImGUi calculate internal draw structures
-		im.render()
+		// // Make ImGUi calculate internal draw structures
+		// im.render()
 
+		futon.update(bedbug_ptr)
 		bedbug.frame_draw(bedbug_ptr.renderer)
 		// futon.update()
 		// game.update()

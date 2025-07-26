@@ -36,25 +36,16 @@ cleanup :: proc(renderer: ^BbRenderer) {
 
 frame_draw :: proc(renderer: ^BbRenderer) {
 
-	aspect := f32(renderer.backend.swapchain.extent.width) / f32(renderer.backend.swapchain.extent.height)
+	// aspect := f32(renderer.backend.swapchain.extent.width) / f32(renderer.backend.swapchain.extent.height)
 
-	projection := bb.mat4_perspective(
-		bb.to_radians(renderer.camera.y_fov),
-		aspect,
-		renderer.camera.near,
-		renderer.camera.far,
-	)
+	// projection := bb.mat4_perspective(
+	// 	bb.to_radians(renderer.camera.y_fov),
+	// 	aspect,
+	// 	renderer.camera.near,
+	// 	renderer.camera.far,
+	// )
 
-	view := bb.mat4_look_at(renderer.camera.position, renderer.camera.target, renderer.camera.up)
+	// view := bb.mat4_look_at(renderer.camera.position, renderer.camera.target, renderer.camera.up)
 
-
-	shader_data := ShaderData {
-		projection = projection,
-		view       = view,
-		model      = bb.mat4(1.0),
-	}
-
-	backend.frame_draw(&renderer.backend, &shader_data)
+	backend.frame_draw(&renderer.backend)
 }
-
-ShaderData :: backend.ShaderData

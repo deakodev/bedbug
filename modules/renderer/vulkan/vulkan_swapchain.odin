@@ -165,12 +165,11 @@ swapchain_surface_format_select :: proc(formats: []vk.SurfaceFormatKHR) -> vk.Su
 
 swapchain_present_mode_select :: proc(modes: []vk.PresentModeKHR) -> vk.PresentModeKHR {
 
-	// todo: decide later
-	// for mode in modes {
-	// 	if mode == .MAILBOX {
-	// 		return .MAILBOX
-	// 	}
-	// }
+	for mode in modes {
+		if mode == .MAILBOX {
+			return .MAILBOX
+		}
+	}
 
 	return .FIFO // fallback
 }

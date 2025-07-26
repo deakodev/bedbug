@@ -5,23 +5,33 @@ import "core:log"
 import "core:slice"
 import vk "vendor:vulkan"
 
-PipelineType :: enum {
-	TRIANGLE = 0,
-	BACKGROUND,
+ComputePushConstants :: struct {
+	_1: bb.vec4,
+	_2: bb.vec4,
+	_3: bb.vec4,
+	_4: bb.vec4,
 }
 
-Pipeline :: struct {
+ComputePipeline :: struct {
+	handle:         vk.Pipeline,
+	layout:         vk.PipelineLayout,
+	push_constants: ComputePushConstants,
+	name:           cstring,
+}
+
+ComputeEffect :: enum {
+	GRADIENT,
+	SKY,
+}
+
+GraphicsPipeline :: struct {
 	handle: vk.Pipeline,
 	layout: vk.PipelineLayout,
 }
 
-// PBR_VERTEX :: #load("../triangle.vert.spv")
-// PBR_FRAGMENT :: #load("../triangle.frag.spv")
-
-ShaderData :: struct {
-	projection: bb.mat4,
-	model:      bb.mat4,
-	view:       bb.mat4,
+Pipeline :: union {
+	GraphicsPipeline,
+	ComputePipeline,
 }
 
 PipelineStates :: struct {
@@ -36,77 +46,77 @@ PipelineStates :: struct {
 g_pipeline_cache: vk.PipelineCache
 g_pipeline_layout: vk.PipelineLayout
 
-vulkan_pipeline_setup :: proc(
-	instance: Instance,
-	device: Device,
-	swapchain: Swapchain,
-) -> (
-	pipelines: [PipelineType]Pipeline,
-) {
+// vulkan_pipeline_setup :: proc(
+// 	instance: Instance,
+// 	device: Device,
+// 	swapchain: Swapchain,
+// ) -> (
+// 	pipelines: [PipelineType]Pipeline,
+// ) {
 
-	// cache_info := vk.PipelineCacheCreateInfo {
-	// 	sType = .PIPELINE_CACHE_CREATE_INFO,
-	// }
+// cache_info := vk.PipelineCacheCreateInfo {
+// 	sType = .PIPELINE_CACHE_CREATE_INFO,
+// }
 
-	// vk_ok(vk.CreatePipelineCache(device.handle, &cache_info, nil, &g_pipeline_cache))
+// vk_ok(vk.CreatePipelineCache(device.handle, &cache_info, nil, &g_pipeline_cache))
 
-	// pipeline_layout_info := vk.PipelineLayoutCreateInfo {
-	// 	sType          = .PIPELINE_LAYOUT_CREATE_INFO,
-	// 	setLayoutCount = 1,
-	// 	pSetLayouts    = &g_descriptor_set_layout,
-	// }
-	// vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
+// pipeline_layout_info := vk.PipelineLayoutCreateInfo {
+// 	sType          = .PIPELINE_LAYOUT_CREATE_INFO,
+// 	setLayoutCount = 1,
+// 	pSetLayouts    = &g_descriptor_set_layout,
+// }
+// vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
 
-	// triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
-	// triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
+// triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
+// triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
 
-	// triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
-	// triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
-	// triangle_stages[1] = shader_stage(.FRAGMENT, triangle_fragment_shader)
+// triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
+// triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
+// triangle_stages[1] = shader_stage(.FRAGMENT, triangle_fragment_shader)
 
-	// vertex_input_bindings := make([]vk.VertexInputBindingDescription, 1)
-	// vertex_input_bindings[0] = {
-	// 	binding   = 0,
-	// 	stride    = size_of(Vertex),
-	// 	inputRate = .VERTEX,
-	// }
+// vertex_input_bindings := make([]vk.VertexInputBindingDescription, 1)
+// vertex_input_bindings[0] = {
+// 	binding   = 0,
+// 	stride    = size_of(Vertex),
+// 	inputRate = .VERTEX,
+// }
 
-	// triangle_vertex_input_attributes := make([]vk.VertexInputAttributeDescription, 2)
-	// triangle_vertex_input_attributes[0] = {
-	// 	location = 0,
-	// 	binding  = 0,
-	// 	format   = .R32G32B32_SFLOAT,
-	// 	offset   = u32(offset_of(Vertex, position)),
-	// }
-	// triangle_vertex_input_attributes[1] = {
-	// 	location = 1,
-	// 	binding  = 0,
-	// 	format   = .R32G32B32_SFLOAT,
-	// 	offset   = u32(offset_of(Vertex, color)),
-	// }
+// triangle_vertex_input_attributes := make([]vk.VertexInputAttributeDescription, 2)
+// triangle_vertex_input_attributes[0] = {
+// 	location = 0,
+// 	binding  = 0,
+// 	format   = .R32G32B32_SFLOAT,
+// 	offset   = u32(offset_of(Vertex, position)),
+// }
+// triangle_vertex_input_attributes[1] = {
+// 	location = 1,
+// 	binding  = 0,
+// 	format   = .R32G32B32_SFLOAT,
+// 	offset   = u32(offset_of(Vertex, color)),
+// }
 
-	// triangle_states := PipelineStates {
-	// 	vertex_input   = vertex_input(vertex_input_bindings, triangle_vertex_input_attributes),
-	// 	input_assembly = input_assembly(),
-	// 	rasterization  = rasterization(),
-	// 	color_blend    = color_blend(.DISABLED),
-	// 	multisample    = multisample({._1}),
-	// 	depth_stencil  = depth_stencil(.DEPTH_TEST_ENABLED),
-	// }
+// triangle_states := PipelineStates {
+// 	vertex_input   = vertex_input(vertex_input_bindings, triangle_vertex_input_attributes),
+// 	input_assembly = input_assembly(),
+// 	rasterization  = rasterization(),
+// 	color_blend    = color_blend(.DISABLED),
+// 	multisample    = multisample({._1}),
+// 	depth_stencil  = depth_stencil(.DEPTH_TEST_ENABLED),
+// }
 
-	// pipelines[.TRIANGLE] = pipeline_compose(
-	// 	device.handle,
-	// 	swapchain,
-	// 	triangle_states,
-	// 	triangle_stages,
-	// 	g_pipeline_layout,
-	// )
+// pipelines[.TRIANGLE] = pipeline_compose(
+// 	device.handle,
+// 	swapchain,
+// 	triangle_states,
+// 	triangle_stages,
+// 	g_pipeline_layout,
+// )
 
-	// vk.DestroyShaderModule(device.handle, triangle_vertex_shader, nil)
-	// vk.DestroyShaderModule(device.handle, triangle_fragment_shader, nil)
+// vk.DestroyShaderModule(device.handle, triangle_vertex_shader, nil)
+// vk.DestroyShaderModule(device.handle, triangle_fragment_shader, nil)
 
-	return pipelines
-}
+// 	return pipelines
+// }
 
 pipeline_compose :: proc(
 	device: vk.Device,
@@ -118,52 +128,52 @@ pipeline_compose :: proc(
 	pipeline: Pipeline,
 ) {
 
-	vertex_input_state := states.vertex_input
-	input_assembly_state := states.input_assembly
-	rasterization_state := states.rasterization
-	multisample_state := states.multisample
-	color_blend_state := states.color_blend
-	depth_stencil_state := states.depth_stencil
+	// vertex_input_state := states.vertex_input
+	// input_assembly_state := states.input_assembly
+	// rasterization_state := states.rasterization
+	// multisample_state := states.multisample
+	// color_blend_state := states.color_blend
+	// depth_stencil_state := states.depth_stencil
 
-	viewport_state := vk.PipelineViewportStateCreateInfo {
-		sType         = .PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		viewportCount = 1,
-		scissorCount  = 1,
-	}
+	// viewport_state := vk.PipelineViewportStateCreateInfo {
+	// 	sType         = .PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+	// 	viewportCount = 1,
+	// 	scissorCount  = 1,
+	// }
 
-	enabled_dynamic := [2]vk.DynamicState{.VIEWPORT, .SCISSOR}
-	dynamic_state := vk.PipelineDynamicStateCreateInfo {
-		sType             = .PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		dynamicStateCount = u32(len(enabled_dynamic)),
-		pDynamicStates    = &enabled_dynamic[0],
-	}
+	// enabled_dynamic := [2]vk.DynamicState{.VIEWPORT, .SCISSOR}
+	// dynamic_state := vk.PipelineDynamicStateCreateInfo {
+	// 	sType             = .PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+	// 	dynamicStateCount = u32(len(enabled_dynamic)),
+	// 	pDynamicStates    = &enabled_dynamic[0],
+	// }
 
-	color_format := swapchain.format.format
-	rendering_info := vk.PipelineRenderingCreateInfo {
-		sType                   = .PIPELINE_RENDERING_CREATE_INFO,
-		colorAttachmentCount    = 1,
-		pColorAttachmentFormats = &color_format,
-		// depthAttachmentFormat   = swapchain.target.depth.format,
-		// stencilAttachmentFormat = swapchain.target.depth.format,
-	}
+	// color_format := swapchain.format.format
+	// rendering_info := vk.PipelineRenderingCreateInfo {
+	// 	sType                   = .PIPELINE_RENDERING_CREATE_INFO,
+	// 	colorAttachmentCount    = 1,
+	// 	pColorAttachmentFormats = &color_format,
+	// 	// depthAttachmentFormat   = swapchain.target.depth.format,
+	// 	// stencilAttachmentFormat = swapchain.target.depth.format,
+	// }
 
-	pipeline_info := vk.GraphicsPipelineCreateInfo {
-		sType               = .GRAPHICS_PIPELINE_CREATE_INFO,
-		pNext               = &rendering_info,
-		stageCount          = u32(len(stages)),
-		pStages             = raw_data(stages),
-		pVertexInputState   = &vertex_input_state,
-		pInputAssemblyState = &input_assembly_state,
-		pRasterizationState = &rasterization_state,
-		pMultisampleState   = &multisample_state,
-		pColorBlendState    = &color_blend_state,
-		pDepthStencilState  = &depth_stencil_state,
-		pViewportState      = &viewport_state,
-		pDynamicState       = &dynamic_state,
-		layout              = layout,
-	}
+	// pipeline_info := vk.GraphicsPipelineCreateInfo {
+	// 	sType               = .GRAPHICS_PIPELINE_CREATE_INFO,
+	// 	pNext               = &rendering_info,
+	// 	stageCount          = u32(len(stages)),
+	// 	pStages             = raw_data(stages),
+	// 	pVertexInputState   = &vertex_input_state,
+	// 	pInputAssemblyState = &input_assembly_state,
+	// 	pRasterizationState = &rasterization_state,
+	// 	pMultisampleState   = &multisample_state,
+	// 	pColorBlendState    = &color_blend_state,
+	// 	pDepthStencilState  = &depth_stencil_state,
+	// 	pViewportState      = &viewport_state,
+	// 	pDynamicState       = &dynamic_state,
+	// 	layout              = layout,
+	// }
 
-	vk_ok(vk.CreateGraphicsPipelines(device, g_pipeline_cache, 1, &pipeline_info, nil, &pipeline.handle))
+	// vk_ok(vk.CreateGraphicsPipelines(device, g_pipeline_cache, 1, &pipeline_info, nil, &pipeline.handle))
 
 	return pipeline
 }
@@ -317,39 +327,75 @@ depth_stencil :: proc(mode: DepthStencilMode) -> vk.PipelineDepthStencilStateCre
 
 background_pipelines_setup :: proc(self: ^Vulkan) {
 
-	layout_info := vk.PipelineLayoutCreateInfo {
-		sType          = .PIPELINE_LAYOUT_CREATE_INFO,
-		pSetLayouts    = &self.frames[0].draw_image.descriptor.layout,
-		setLayoutCount = 1,
+	push_constant := vk.PushConstantRange {
+		offset     = 0,
+		size       = size_of(ComputePushConstants),
+		stageFlags = {.COMPUTE},
 	}
 
-	vk_ok(vk.CreatePipelineLayout(self.device.handle, &layout_info, nil, &self.pipelines[.BACKGROUND].layout))
+	layout_info := vk.PipelineLayoutCreateInfo {
+		sType                  = .PIPELINE_LAYOUT_CREATE_INFO,
+		setLayoutCount         = 1,
+		pSetLayouts            = &self.frames[0].draw_image.descriptor.layout,
+		pushConstantRangeCount = 1,
+		pPushConstantRanges    = &push_constant,
+	}
 
-	GRADIENT_COMP_SPV :: #load("../shaders/bin/gradient.comp.spv")
-	gradient_shader := shader_module_make(self.device.handle, GRADIENT_COMP_SPV)
-	defer vk.DestroyShaderModule(self.device.handle, gradient_shader, nil)
+	pipeline_layout: vk.PipelineLayout
+	vk_ok(vk.CreatePipelineLayout(self.device.handle, &layout_info, nil, &pipeline_layout))
 
 	stage_info := vk.PipelineShaderStageCreateInfo {
-		sType  = .PIPELINE_SHADER_STAGE_CREATE_INFO,
-		stage  = {.COMPUTE},
-		module = gradient_shader,
-		pName  = "main",
+		sType = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+		stage = {.COMPUTE},
+		pName = "main",
 	}
 
-	pipeline_info := vk.ComputePipelineCreateInfo {
+	compute_info := vk.ComputePipelineCreateInfo {
 		sType  = .COMPUTE_PIPELINE_CREATE_INFO,
-		layout = self.pipelines[.BACKGROUND].layout,
+		layout = pipeline_layout,
 		stage  = stage_info,
 	}
 
-	vk_ok(
-		vk.CreateComputePipelines(self.device.handle, 0, 1, &pipeline_info, nil, &self.pipelines[.BACKGROUND].handle),
-	)
+	{ 	// GRADIENT
+		GRADIENT_COLOR_SPV :: #load("../shaders/bin/gradient_color.comp.spv")
+		gradient_shader := shader_module_make(self.device.handle, GRADIENT_COLOR_SPV)
+		defer vk.DestroyShaderModule(self.device.handle, gradient_shader, nil)
+
+		compute_info.stage.module = gradient_shader
+
+		pipeline := ComputePipeline {
+			layout = pipeline_layout,
+			push_constants = {_1 = {1, 0, 0, 1}, _2 = {0, 0, 1, 1}, _3 = {}, _4 = {}},
+			name = "Gradient",
+		}
+
+		vk_ok(vk.CreateComputePipelines(self.device.handle, 0, 1, &compute_info, nil, &pipeline.handle))
+
+		self.background.effects[.GRADIENT] = pipeline
+	}
+
+	{ 	// SKY
+		SKY_SPV :: #load("../shaders/bin/sky.comp.spv")
+		sky_shader := shader_module_make(self.device.handle, SKY_SPV)
+		defer vk.DestroyShaderModule(self.device.handle, sky_shader, nil)
+
+		compute_info.stage.module = sky_shader
+
+		pipeline := ComputePipeline {
+			layout = pipeline_layout,
+			push_constants = {_1 = {0.1, 0.2, 0.4, 0.97}, _2 = {}, _3 = {}, _4 = {}},
+			name = "Sky",
+		}
+
+		vk_ok(vk.CreateComputePipelines(self.device.handle, 0, 1, &compute_info, nil, &pipeline.handle))
+
+		self.background.effects[.SKY] = pipeline
+	}
 
 	resource_stack_push(
 		&self.device.cleanup_stack,
-		self.pipelines[.BACKGROUND].layout,
-		self.pipelines[.BACKGROUND].handle,
+		self.background.effects[.GRADIENT].layout, // todo: shared
+		self.background.effects[.GRADIENT].handle,
+		self.background.effects[.SKY].handle,
 	)
 }
-

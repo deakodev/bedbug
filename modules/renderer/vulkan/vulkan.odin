@@ -16,12 +16,18 @@ import "core:math"
 @(private = "package")
 g_foreign_context: runtime.Context
 
+Background :: struct {
+	effects:  [ComputeEffect]ComputePipeline,
+	selected: ComputeEffect,
+}
+
 Vulkan :: struct {
 	instance:         Instance,
 	device:           Device,
 	swapchain:        Swapchain,
 	descriptor_pool:  vk.DescriptorPool,
-	pipelines:        [PipelineType]Pipeline,
+	// pipelines:        [PipelineType]Pipeline,
+	background:       Background,
 	frames:           []Frame,
 	next_frame_index: u32,
 }
@@ -55,7 +61,7 @@ cleanup :: proc(self: ^Vulkan) {
 	vulkan_instance_cleanup(self)
 }
 
-frame_draw :: proc(backend: ^Vulkan, shader_data: ^ShaderData) {
+frame_draw :: proc(backend: ^Vulkan) {
 
 	frame := _get_next_frame(backend)
 	vk_ok(vk.WaitForFences(backend.device.handle, 1, &frame.fence, true, max(u64)))
@@ -159,17 +165,27 @@ frame_draw :: proc(backend: ^Vulkan, shader_data: ^ShaderData) {
 
 frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 
-	vk.CmdBindPipeline(frame.command_buffer, .COMPUTE, self.pipelines[.BACKGROUND].handle)
+	effect := &self.background.effects[self.background.selected]
+	vk.CmdBindPipeline(frame.command_buffer, .COMPUTE, effect.handle)
 
 	vk.CmdBindDescriptorSets(
 		frame.command_buffer,
 		.COMPUTE,
-		self.pipelines[.BACKGROUND].layout,
+		effect.layout,
 		0,
 		1,
 		&frame.draw_image.descriptor.set,
 		0,
 		nil,
+	)
+
+	vk.CmdPushConstants(
+		frame.command_buffer,
+		effect.layout,
+		{.COMPUTE},
+		0,
+		size_of(ComputePushConstants),
+		&effect.push_constants,
 	)
 
 	vk.CmdDispatch(
