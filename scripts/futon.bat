@@ -27,10 +27,10 @@ if %EXE_RUNNING% == true (
     exit /b 0
 )
 
-echo [Building debug futon.dll...]
-call %BUILD% debug futon.dll
+echo [Building debug editor.dll...]
+call %BUILD% debug editor.dll
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Failed to build debug futon.dll
+    echo [ERROR] Failed to build debug editor.dll
     exit /b %ERRORLEVEL%
 )
 

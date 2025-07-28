@@ -28,13 +28,14 @@ Vulkan :: struct {
 	descriptor_pool:  vk.DescriptorPool,
 	// pipelines:        [PipelineType]Pipeline,
 	background:       Background,
+	imgui:            ^im.Context,
 	frames:           []Frame,
 	next_frame_index: u32,
 }
 
 MAX_CONCURRENT_FRAMES :: 2
 
-setup :: proc(self: ^Vulkan) -> (ok: bool) {
+setup :: proc(self: ^Vulkan) {
 
 	g_foreign_context = context
 
@@ -47,9 +48,6 @@ setup :: proc(self: ^Vulkan) -> (ok: bool) {
 	background_pipelines_setup(self)
 
 	vulkan_imgui_setup(self)
-
-
-	return true
 }
 
 cleanup :: proc(self: ^Vulkan) {

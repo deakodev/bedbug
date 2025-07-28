@@ -3,27 +3,31 @@ package entry
 import "bedbug:bedbug"
 import "core:log"
 
+LayerTag :: enum {
+	GAME,
+}
+
 main :: proc() {
-	context.user_ptr = new(bedbug.Bedbug)
-	context.logger = bedbug.logger_setup("bedbug")
-	context.allocator = bedbug.allocator_setup()
 
-	bedbug.setup()
-
-	game_lib := bedbug.dynlib_load(bedbug.Game_Symbols)
-	game := bedbug.dynlib_generation(game_lib)
-	game.setup()
-
-	for bedbug.should_run() {
-		bedbug.update()
-		game.update()
-
-		bedbug.allocator_check()
+	when ODIN_DEBUG {
+		context.logger = bedbug.logger_setup()
+		context.allocator = bedbug.allocator_setup()
+		defer bedbug.allocator_cleanup()
 	}
 
-	game.cleanup()
-	bedbug.dynlib_unload(game_lib)
-	delete(game_lib.generations)
+	bedbug_ptr := new(bedbug.Bedbug)
+	context.user_ptr = bedbug_ptr
 
-	bedbug.cleanup()
+	layers: [LayerTag]bedbug.Layer
+	plugin := bedbug.Plugin(LayerTag) {
+		tag    = LayerTag,
+		layers = layers,
+	}
+
+	bedbug.setup(bedbug_ptr, &plugin)
+
+	bedbug.run(bedbug_ptr, &plugin)
+
+	bedbug.cleanup(bedbug_ptr, &plugin)
+	free(bedbug_ptr)
 }

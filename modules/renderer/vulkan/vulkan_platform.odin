@@ -1,0 +1,30 @@
+package vulkan_backend
+
+import vk "vendor:vulkan"
+
+PLATFORM_SUPPORTED :: ODIN_OS == .Windows || ODIN_OS == .Linux || ODIN_OS == .Darwin
+#assert(PLATFORM_SUPPORTED, "unsupported platform for vulkan backend.")
+
+when ODIN_OS == .Windows {
+
+	INSTANCE_FLAG :: vk.InstanceCreateFlags{}
+	INSTANCE_EXTENSIONS :: []cstring{vk.KHR_SURFACE_EXTENSION_NAME, vk.KHR_WIN32_SURFACE_EXTENSION_NAME}
+	DEVICE_EXTENSIONS :: []cstring{vk.KHR_SWAPCHAIN_EXTENSION_NAME}
+
+} else when ODIN_OS == .Linux {
+
+	INSTANCE_FLAG :: vk.InstanceCreateFlags{}
+	INSTANCE_EXTENSIONS :: []cstring{vk.KHR_SURFACE_EXTENSION_NAME}
+	DEVICE_EXTENSIONS :: []cstring{vk.KHR_SWAPCHAIN_EXTENSION_NAME}
+
+} else when ODIN_OS == .Darwin {
+
+	INSTANCE_FLAG :: vk.InstanceCreateFlags{.ENUMERATE_PORTABILITY_KHR}
+	INSTANCE_EXTENSIONS :: []cstring {
+		vk.KHR_SURFACE_EXTENSION_NAME,
+		vk.EXT_METAL_SURFACE_EXTENSION_NAME,
+		vk.KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+	}
+	DEVICE_EXTENSIONS :: []cstring{vk.KHR_SWAPCHAIN_EXTENSION_NAME, vk.KHR_PORTABILITY_SUBSET_EXTENSION_NAME}
+
+}

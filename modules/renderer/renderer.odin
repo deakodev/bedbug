@@ -2,18 +2,22 @@ package renderer
 
 import backend "./vulkan"
 import bb "bedbug:core"
+import im "bedbug:vendor/imgui"
+import im_glfw "bedbug:vendor/imgui/imgui_impl_glfw"
+import im_vk "bedbug:vendor/imgui/imgui_impl_vulkan"
 import "core:log"
 
 BbRenderer :: struct {
 	backend: backend.Vulkan,
 	camera:  Camera,
+	imgui:   ^im.Context,
 }
 
-setup :: proc(renderer: ^BbRenderer) -> (ok: bool) {
+setup :: proc(renderer: ^BbRenderer) {
 
 	log.info("Setting up renderer...")
 
-	backend.setup(&renderer.backend) or_return
+	backend.setup(&renderer.backend)
 
 	renderer.camera = Camera {
 		position        = bb.vec3{0.0, 0.0, -2.5},
@@ -24,14 +28,24 @@ setup :: proc(renderer: ^BbRenderer) -> (ok: bool) {
 		y_fov           = 60.0,
 		projection_type = .PERSPECTIVE,
 	}
-
-	return true
 }
 
 cleanup :: proc(renderer: ^BbRenderer) {
 
-	log.info("Cleaning up renderer...")
+	log.info("cleaning up renderer...")
 	backend.cleanup(&renderer.backend)
+}
+
+begin_frame :: proc() {
+
+	im_glfw.new_frame()
+	im_vk.new_frame()
+	im.new_frame()
+}
+
+end_frame :: proc() {
+
+	im.render()
 }
 
 frame_draw :: proc(renderer: ^BbRenderer) {

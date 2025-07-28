@@ -1,32 +1,25 @@
-package futon
+package editor
 
 import bb "bedbug:bedbug"
 import im "bedbug:vendor/imgui"
-import im_glfw "bedbug:vendor/imgui/imgui_impl_glfw"
-import im_vk "bedbug:vendor/imgui/imgui_impl_vulkan"
-
-import "base:runtime"
-import "core:fmt"
 import "core:log"
 
-
 @(export)
-futon_setup :: proc(imgui: rawptr) {
+editor_setup :: proc(bedbug: rawptr, self: rawptr) {
 
-	log.info("setting up futon")
-	im.set_current_context((^im.Context)(imgui))
-}
-
-
-@(export)
-futon_cleanup :: proc() {
-
-	log.info("cleaning up futon")
-
+	log.info("setting up editor")
+	imgui := ((^bb.Bedbug)(bedbug)).renderer.backend.imgui
+	im.set_current_context(imgui)
 }
 
 @(export)
-futon_update :: proc(bedbug: rawptr) {
+editor_cleanup :: proc(bedbug: rawptr, self: rawptr) {
+
+	log.info("cleaning up editor")
+}
+
+@(export)
+editor_update :: proc(bedbug: rawptr, self: rawptr) {
 
 	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
 
@@ -55,5 +48,5 @@ futon_update :: proc(bedbug: rawptr) {
 
 	im.end()
 
-	im.render()
+	// im.show_demo_window()
 }

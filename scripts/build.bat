@@ -19,9 +19,9 @@ for %%A in (%*) do (
         set "BUILD_DEFINES="
     )
 
-    if /I "%%A"=="futon.dll" (
-        set "BUILD_SOURCE=futon"
-        set "BUILD_TARGET=futon"
+    if /I "%%A"=="editor.dll" (
+        set "BUILD_SOURCE=editor"
+        set "BUILD_TARGET=editor"
         set "BUILD_MODE=dll"
         set "BUILD_DEFINES="
     )

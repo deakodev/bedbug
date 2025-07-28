@@ -72,5 +72,6 @@ window_should_close :: proc() -> bool {
 }
 
 wait_events :: proc() {
+
 	glfw.WaitEvents()
 }

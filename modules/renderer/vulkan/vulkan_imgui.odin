@@ -39,7 +39,7 @@ vulkan_imgui_setup :: proc(self: ^Vulkan) {
 	imgui_pool: vk.DescriptorPool
 	vk_ok(vk.CreateDescriptorPool(self.device.handle, &pool_info, nil, &imgui_pool))
 
-	im.create_context()
+	self.imgui = im.create_context()
 	im_glfw.init_for_vulkan(bb.core().window.handle, true)
 
 	init_info := im_vk.Init_Info {
