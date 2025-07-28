@@ -7,7 +7,7 @@ import "core:log"
 @(export)
 editor_setup :: proc(bedbug: rawptr, self: rawptr) {
 
-	log.info("setting up editor")
+	log.info("setting up editor...")
 	imgui := ((^bb.Bedbug)(bedbug)).renderer.backend.imgui
 	im.set_current_context(imgui)
 }
@@ -15,13 +15,16 @@ editor_setup :: proc(bedbug: rawptr, self: rawptr) {
 @(export)
 editor_cleanup :: proc(bedbug: rawptr, self: rawptr) {
 
-	log.info("cleaning up editor")
+	log.info("cleaning up editor...")
 }
 
 @(export)
 editor_update :: proc(bedbug: rawptr, self: rawptr) {
 
 	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
+
+	// log.info("editor")
+
 
 	if im.begin("Background", nil, {.Always_Auto_Resize}) {
 		effect_selected := &backend.background.effects[backend.background.selected]

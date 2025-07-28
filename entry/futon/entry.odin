@@ -3,9 +3,9 @@ package entry
 import "bedbug:bedbug"
 import "core:log"
 
-LayerTag :: enum {
-	EDITOR,
+Layers :: enum {
 	GAME,
+	EDITOR,
 }
 
 main :: proc() {
@@ -19,10 +19,10 @@ main :: proc() {
 	bedbug_ptr := new(bedbug.Bedbug)
 	context.user_ptr = bedbug_ptr
 
-	layers: [LayerTag]bedbug.Layer
-	plugin := bedbug.Plugin(LayerTag) {
-		tag    = LayerTag,
-		layers = layers,
+	libs: [Layers]bedbug.Dynlib
+	plugin := bedbug.Plugin(Layers) {
+		tag  = Layers,
+		libs = libs,
 	}
 
 	bedbug.setup(bedbug_ptr, &plugin)
@@ -30,5 +30,4 @@ main :: proc() {
 	bedbug.run(bedbug_ptr, &plugin)
 
 	bedbug.cleanup(bedbug_ptr, &plugin)
-	free(bedbug_ptr)
 }
