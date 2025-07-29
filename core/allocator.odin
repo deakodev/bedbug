@@ -33,6 +33,7 @@ allocator_cleanup :: proc() {
 			log.debugf("%v bytes @ %v", entry.size, entry.location)
 		}
 	}
+
 	if len(g_tracking_allocator.bad_free_array) > 0 {
 		log.errorf("=== %v incorrect frees: ===", len(g_tracking_allocator.bad_free_array))
 		for entry in g_tracking_allocator.bad_free_array {

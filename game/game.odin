@@ -7,47 +7,30 @@ Game :: struct {
 	some_number: int,
 }
 
-g: ^Game
-
 @(export)
-game_setup :: proc(bedbug: rawptr, self: rawptr) {
+game_setup :: proc(bedbug: rawptr) -> (self: rawptr, type: typeid) {
 
 	log.info("setting up game...")
-	g = new(Game)
 
-	g^ = Game {
-		some_number = 100,
-	}
+	self = new(Game)
 
-	hot_reloaded(g)
+	return self, type_of(self)
 }
 
 @(export)
 game_cleanup :: proc(bedbug: rawptr, self: rawptr) {
-
 	log.info("cleaning up game...")
-	free(g)
+	free(self)
 }
 
 @(export)
 game_update :: proc(bedbug: rawptr, self: rawptr) {
-
-	// @(static) count: int
-	// log.info("updated...", count)
-	// count += 1
+	game := (^Game)(self)
+	game.some_number += 1
+	log.info("some_number:", game.some_number)
 }
 
-memory :: proc() -> rawptr {
+@(export)
+game_draw :: proc(bedbug: rawptr, self: rawptr) {
 
-	return g
-}
-
-memory_size :: proc() -> int {
-
-	return size_of(Game)
-}
-
-hot_reloaded :: proc(mem: rawptr) {
-
-	g = (^Game)(mem)
 }

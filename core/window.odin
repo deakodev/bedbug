@@ -50,7 +50,6 @@ window_setup :: proc(title: cstring, width: i32, height: i32) -> (window: Window
 	return window
 }
 
-
 window_cleanup :: proc() {
 
 	if core().window.handle != nil {
@@ -59,19 +58,17 @@ window_cleanup :: proc() {
 	}
 }
 
-
 window_poll_events :: proc() {
 
 	glfw.PollEvents()
 }
-
 
 window_should_close :: proc() -> bool {
 
 	return bool(glfw.WindowShouldClose(core().window.handle))
 }
 
-wait_events :: proc() {
+window_wait_events :: proc() {
 
 	glfw.WaitEvents()
 }

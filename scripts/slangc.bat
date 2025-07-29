@@ -29,7 +29,6 @@ set "watch_mode=false"
 if "%1"=="watch" set "watch_mode=true"
 
 :: Initial compilation of all files
-echo [Compiling shaders...]
 set "count=0"
 set "errors=0"
 

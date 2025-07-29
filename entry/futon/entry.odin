@@ -20,10 +20,8 @@ main :: proc() {
 	context.user_ptr = bedbug_ptr
 
 	libs: [Layers]bedbug.Dynlib
-	plugin := bedbug.Plugin(Layers) {
-		tag  = Layers,
-		libs = libs,
-	}
+	layers: [Layers]bedbug.Layer
+	plugin := bedbug.Plugin(Layers){libs, layers}
 
 	bedbug.setup(bedbug_ptr, &plugin)
 

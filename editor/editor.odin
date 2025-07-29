@@ -4,27 +4,37 @@ import bb "bedbug:bedbug"
 import im "bedbug:vendor/imgui"
 import "core:log"
 
+Editor :: struct {}
+
 @(export)
-editor_setup :: proc(bedbug: rawptr, self: rawptr) {
+editor_setup :: proc(bedbug: rawptr) -> (self: rawptr, type: typeid) {
 
 	log.info("setting up editor...")
 	imgui := ((^bb.Bedbug)(bedbug)).renderer.backend.imgui
 	im.set_current_context(imgui)
+
+	self = new(Editor)
+
+	return self, type_of(self)
 }
 
 @(export)
 editor_cleanup :: proc(bedbug: rawptr, self: rawptr) {
 
 	log.info("cleaning up editor...")
+	free(self)
 }
 
 @(export)
 editor_update :: proc(bedbug: rawptr, self: rawptr) {
 
+	// log.info("updating editor...")
+}
+
+@(export)
+editor_draw :: proc(bedbug: rawptr, self: rawptr) {
+
 	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
-
-	// log.info("editor")
-
 
 	if im.begin("Background", nil, {.Always_Auto_Resize}) {
 		effect_selected := &backend.background.effects[backend.background.selected]

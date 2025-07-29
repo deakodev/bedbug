@@ -5,15 +5,19 @@
 			"path": ".",
 		},
 		{
+			"name": "odin.core",
 			"path": "D:\\odin\\odin\\core",
 		},
 		{
+			"name": "odin.vendor.glfw",
 			"path": "D:\\odin\\odin\\vendor\\glfw",
 		},
 		{
+			"name": "odin.vendor.vulkan",
 			"path": "D:\\odin\\odin\\vendor\\vulkan",
 		},
 		{
+			"name": "odin.examples",
 			"path": "D:\\odin\\examples",
 		},
 	],

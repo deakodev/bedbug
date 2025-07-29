@@ -27,6 +27,7 @@ Frame :: struct {
 	command_buffer:    vk.CommandBuffer,
 	draw_image:        AllocatedImage,
 	ephemeral_stack:   ResourceStack,
+	image_index:       u32,
 }
 
 g_descriptor_pool: vk.DescriptorPool

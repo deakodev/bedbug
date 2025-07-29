@@ -10,16 +10,16 @@ import "core:log"
 BbRenderer :: struct {
 	backend: backend.Vulkan,
 	camera:  Camera,
-	imgui:   ^im.Context,
 }
 
-setup :: proc(renderer: ^BbRenderer) {
+setup :: proc(self: ^BbRenderer) {
 
 	log.info("Setting up renderer...")
+	log.assert(self != nil, "renderer pointer is nil.")
 
-	backend.setup(&renderer.backend)
+	backend.setup(&self.backend)
 
-	renderer.camera = Camera {
+	self.camera = Camera {
 		position        = bb.vec3{0.0, 0.0, -2.5},
 		target          = bb.vec3{0.0, 0.0, 0.0},
 		up              = bb.vec3{0.0, 1.0, 0.0},
@@ -30,36 +30,27 @@ setup :: proc(renderer: ^BbRenderer) {
 	}
 }
 
-cleanup :: proc(renderer: ^BbRenderer) {
+cleanup :: proc(self: ^BbRenderer) {
 
 	log.info("cleaning up renderer...")
-	backend.cleanup(&renderer.backend)
+	log.assert(self != nil, "renderer pointer is nil.")
+	backend.cleanup(&self.backend)
 }
 
-begin_frame :: proc() {
+frame_prepare :: proc(self: ^BbRenderer) {
+
+	backend.frame_prepare(&self.backend)
+}
+
+frame_begin :: proc() {
 
 	im_glfw.new_frame()
 	im_vk.new_frame()
 	im.new_frame()
 }
 
-end_frame :: proc() {
+frame_end :: proc(self: ^BbRenderer) {
 
 	im.render()
-}
-
-frame_draw :: proc(renderer: ^BbRenderer) {
-
-	// aspect := f32(renderer.backend.swapchain.extent.width) / f32(renderer.backend.swapchain.extent.height)
-
-	// projection := bb.mat4_perspective(
-	// 	bb.to_radians(renderer.camera.y_fov),
-	// 	aspect,
-	// 	renderer.camera.near,
-	// 	renderer.camera.far,
-	// )
-
-	// view := bb.mat4_look_at(renderer.camera.position, renderer.camera.target, renderer.camera.up)
-
-	backend.frame_draw(&renderer.backend)
+	backend.frame_draw(&self.backend)
 }

@@ -13,6 +13,7 @@ if %EXE_RUNNING% == false (
     del /q /s %BUILD_DIR% >nul 2>nul
 )
 
+echo [Compiling shaders...]
 call "scripts\slangc.bat"
 
 echo [Building debug game.dll...]

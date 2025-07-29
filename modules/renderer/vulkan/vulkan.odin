@@ -26,7 +26,6 @@ Vulkan :: struct {
 	device:           Device,
 	swapchain:        Swapchain,
 	descriptor_pool:  vk.DescriptorPool,
-	// pipelines:        [PipelineType]Pipeline,
 	background:       Background,
 	imgui:            ^im.Context,
 	frames:           []Frame,
@@ -38,6 +37,7 @@ MAX_CONCURRENT_FRAMES :: 2
 setup :: proc(self: ^Vulkan) {
 
 	g_foreign_context = context
+	log.assert(self != nil, "renderer backend pointer is nil.")
 
 	vulkan_instance_setup(self)
 	vulkan_device_setup(self)
@@ -52,16 +52,20 @@ setup :: proc(self: ^Vulkan) {
 
 cleanup :: proc(self: ^Vulkan) {
 
-	ensure(vk.DeviceWaitIdle(self.device.handle) == .SUCCESS)
+	log.assert(self != nil, "renderer backend pointer is nil.")
+	log.ensure(vk.DeviceWaitIdle(self.device.handle) == .SUCCESS)
+
 	vulkan_frame_cleanup(self)
 	vulkan_swapchain_cleanup(self)
 	vulkan_device_cleanup(self)
 	vulkan_instance_cleanup(self)
 }
 
-frame_draw :: proc(backend: ^Vulkan) {
+frame_prepare :: proc(backend: ^Vulkan) {
 
 	frame := _get_next_frame(backend)
+	resource_stack_flush(&frame.ephemeral_stack)
+
 	vk_ok(vk.WaitForFences(backend.device.handle, 1, &frame.fence, true, max(u64)))
 	vk_ok(vk.ResetFences(backend.device.handle, 1, &frame.fence))
 
@@ -72,8 +76,16 @@ frame_draw :: proc(backend: ^Vulkan) {
 		max(u64),
 		frame.present_semaphore,
 		0,
-		&image_index,
+		&frame.image_index,
 	)
+
+	// todo: check result
+}
+
+frame_draw :: proc(backend: ^Vulkan) {
+
+	frame := _get_next_frame(backend)
+	swapchain_image := backend.swapchain.images[frame.image_index]
 
 	vk_ok(vk.ResetCommandBuffer(frame.command_buffer, {}))
 
@@ -88,31 +100,21 @@ frame_draw :: proc(backend: ^Vulkan) {
 	frame_draw_background(backend, frame)
 
 	image_transition(frame.command_buffer, frame.draw_image.handle, .GENERAL, .TRANSFER_SRC_OPTIMAL)
-	image_transition(frame.command_buffer, backend.swapchain.images[image_index], .UNDEFINED, .TRANSFER_DST_OPTIMAL)
+	image_transition(frame.command_buffer, swapchain_image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
 
 	image_copy(
 		frame.command_buffer,
 		frame.draw_image.handle,
-		backend.swapchain.images[image_index],
+		swapchain_image,
 		{frame.draw_image.extent.width, frame.draw_image.extent.height},
 		backend.swapchain.extent,
 	)
 
-	image_transition(
-		frame.command_buffer,
-		backend.swapchain.images[image_index],
-		.TRANSFER_DST_OPTIMAL,
-		.COLOR_ATTACHMENT_OPTIMAL,
-	)
+	image_transition(frame.command_buffer, swapchain_image, .TRANSFER_DST_OPTIMAL, .COLOR_ATTACHMENT_OPTIMAL)
 
-	frame_draw_imgui(backend, frame, image_index)
+	frame_draw_imgui(backend, frame)
 
-	image_transition(
-		frame.command_buffer,
-		backend.swapchain.images[image_index],
-		.COLOR_ATTACHMENT_OPTIMAL,
-		.PRESENT_SRC_KHR,
-	)
+	image_transition(frame.command_buffer, swapchain_image, .COLOR_ATTACHMENT_OPTIMAL, .PRESENT_SRC_KHR)
 
 	vk_ok(vk.EndCommandBuffer(frame.command_buffer))
 
@@ -153,10 +155,12 @@ frame_draw :: proc(backend: ^Vulkan) {
 		pWaitSemaphores    = &frame.submit_semaphore,
 		swapchainCount     = 1,
 		pSwapchains        = &backend.swapchain.handle,
-		pImageIndices      = &image_index,
+		pImageIndices      = &frame.image_index,
 	}
 
-	result = vk.QueuePresentKHR(backend.device.graphics_queue, &present_info)
+	result := vk.QueuePresentKHR(backend.device.graphics_queue, &present_info)
+
+	// todo: check result
 
 	_set_next_frame(backend)
 }
@@ -188,17 +192,17 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdDispatch(
 		frame.command_buffer,
-		u32(math.ceil_f32(f32(frame.draw_image.extent.width) / 16.0)),
-		u32(math.ceil_f32(f32(frame.draw_image.extent.height) / 16.0)),
+		u32(math.ceil(f32(frame.draw_image.extent.width) / 16.0)),
+		u32(math.ceil(f32(frame.draw_image.extent.height) / 16.0)),
 		1,
 	)
 }
 
-frame_draw_imgui :: proc(self: ^Vulkan, frame: ^Frame, image_index: u32) {
+frame_draw_imgui :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	color_attachment := vk.RenderingAttachmentInfo {
 		sType       = .RENDERING_ATTACHMENT_INFO,
-		imageView   = self.swapchain.views[image_index],
+		imageView   = self.swapchain.views[frame.image_index],
 		imageLayout = .GENERAL,
 		loadOp      = .LOAD,
 		storeOp     = .STORE,

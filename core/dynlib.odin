@@ -9,10 +9,10 @@ import "core:time"
 
 DynlibSymbols :: struct {
 	handle:  dynlib.Library,
-	setup:   proc(bedbug: rawptr, self: rawptr),
+	setup:   proc(bedbug: rawptr) -> (self: rawptr, type: typeid),
 	cleanup: proc(bedbug: rawptr, self: rawptr),
 	update:  proc(bedbug: rawptr, self: rawptr),
-	self:    rawptr,
+	draw:    proc(bedbug: rawptr, self: rawptr),
 }
 
 Dynlib :: struct {
@@ -22,6 +22,8 @@ Dynlib :: struct {
 }
 
 dynlib_load :: proc(lib: ^Dynlib) -> ^DynlibSymbols {
+
+	log.assert(lib != nil, "failed to load. Dynlib is nil")
 
 	append(&lib.versions, DynlibSymbols{})
 	version_index := len(lib.versions) - 1
@@ -46,6 +48,8 @@ dynlib_load :: proc(lib: ^Dynlib) -> ^DynlibSymbols {
 }
 
 dynlib_unload :: proc(lib: ^Dynlib) {
+
+	log.assert(lib != nil, "failed to unload. Dynlib is nil.")
 
 	for &version, index in lib.versions {
 		if lib != nil {
@@ -83,7 +87,6 @@ dynlib_should_reload :: proc(lib: ^Dynlib) -> bool {
 
 	src_path := fmt.tprintf("%s/%s.%s", BUILD_DIR, lib.name, dynlib.LIBRARY_FILE_EXTENSION)
 	updated_at_time := dynlib_updated_at(src_path)
-	// log.debug("lib:", lib.name, src_path, updated_at_time != lib.updated_at && updated_at_time != os.File_Time{})
 	return updated_at_time != lib.updated_at && updated_at_time != os.File_Time{}
 }
 
@@ -102,8 +105,4 @@ dynlib_get_version :: proc(lib: ^Dynlib, index: int = -1) -> ^DynlibSymbols {
 
 	i := index > 0 ? index : len(lib.versions) - 1
 	return &lib.versions[i]
-}
-
-dynlib_get_by_name :: proc(name: string) {
-	return 
 }
