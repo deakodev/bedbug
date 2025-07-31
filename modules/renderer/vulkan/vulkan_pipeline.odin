@@ -1,6 +1,7 @@
 package vulkan_backend
 
 import bb "bedbug:core"
+import sa "core:container/small_array"
 import "core:log"
 import "core:slice"
 import vk "vendor:vulkan"
@@ -29,300 +30,141 @@ GraphicsPipeline :: struct {
 	layout: vk.PipelineLayout,
 }
 
+GraphicsEffect :: enum {
+	TRIANGLE,
+}
+
 Pipeline :: union {
 	GraphicsPipeline,
 	ComputePipeline,
 }
 
-PipelineStates :: struct {
-	vertex_input:   vk.PipelineVertexInputStateCreateInfo,
-	input_assembly: vk.PipelineInputAssemblyStateCreateInfo,
-	rasterization:  vk.PipelineRasterizationStateCreateInfo,
-	color_blend:    vk.PipelineColorBlendStateCreateInfo,
-	multisample:    vk.PipelineMultisampleStateCreateInfo,
-	depth_stencil:  vk.PipelineDepthStencilStateCreateInfo,
+PipelineInfo :: union {
+	ShaderStages,
+	VertexInput,
+	InputAssembly,
+	Rasterization,
+	ColorBlend,
+	Multisample,
+	DepthStencil,
+	Tessellation,
+	Viewport,
+	Dynamic,
+	Rendering,
+	Layout,
 }
 
-g_pipeline_cache: vk.PipelineCache
-g_pipeline_layout: vk.PipelineLayout
-
-// vulkan_pipeline_setup :: proc(
-// 	instance: Instance,
-// 	device: Device,
-// 	swapchain: Swapchain,
-// ) -> (
-// 	pipelines: [PipelineType]Pipeline,
-// ) {
-
-// cache_info := vk.PipelineCacheCreateInfo {
-// 	sType = .PIPELINE_CACHE_CREATE_INFO,
-// }
-
-// vk_ok(vk.CreatePipelineCache(device.handle, &cache_info, nil, &g_pipeline_cache))
-
-// pipeline_layout_info := vk.PipelineLayoutCreateInfo {
-// 	sType          = .PIPELINE_LAYOUT_CREATE_INFO,
-// 	setLayoutCount = 1,
-// 	pSetLayouts    = &g_descriptor_set_layout,
-// }
-// vk_ok(vk.CreatePipelineLayout(device.handle, &pipeline_layout_info, nil, &g_pipeline_layout))
-
-// triangle_vertex_shader := shader_module_make(device.handle, PBR_VERTEX)
-// triangle_fragment_shader := shader_module_make(device.handle, PBR_FRAGMENT)
-
-// triangle_stages := make([]vk.PipelineShaderStageCreateInfo, 2)
-// triangle_stages[0] = shader_stage(.VERTEX, triangle_vertex_shader)
-// triangle_stages[1] = shader_stage(.FRAGMENT, triangle_fragment_shader)
-
-// vertex_input_bindings := make([]vk.VertexInputBindingDescription, 1)
-// vertex_input_bindings[0] = {
-// 	binding   = 0,
-// 	stride    = size_of(Vertex),
-// 	inputRate = .VERTEX,
-// }
-
-// triangle_vertex_input_attributes := make([]vk.VertexInputAttributeDescription, 2)
-// triangle_vertex_input_attributes[0] = {
-// 	location = 0,
-// 	binding  = 0,
-// 	format   = .R32G32B32_SFLOAT,
-// 	offset   = u32(offset_of(Vertex, position)),
-// }
-// triangle_vertex_input_attributes[1] = {
-// 	location = 1,
-// 	binding  = 0,
-// 	format   = .R32G32B32_SFLOAT,
-// 	offset   = u32(offset_of(Vertex, color)),
-// }
-
-// triangle_states := PipelineStates {
-// 	vertex_input   = vertex_input(vertex_input_bindings, triangle_vertex_input_attributes),
-// 	input_assembly = input_assembly(),
-// 	rasterization  = rasterization(),
-// 	color_blend    = color_blend(.DISABLED),
-// 	multisample    = multisample({._1}),
-// 	depth_stencil  = depth_stencil(.DEPTH_TEST_ENABLED),
-// }
-
-// pipelines[.TRIANGLE] = pipeline_compose(
-// 	device.handle,
-// 	swapchain,
-// 	triangle_states,
-// 	triangle_stages,
-// 	g_pipeline_layout,
-// )
-
-// vk.DestroyShaderModule(device.handle, triangle_vertex_shader, nil)
-// vk.DestroyShaderModule(device.handle, triangle_fragment_shader, nil)
-
-// 	return pipelines
-// }
-
-pipeline_compose :: proc(
-	device: vk.Device,
-	swapchain: Swapchain,
-	states: PipelineStates,
-	stages: []vk.PipelineShaderStageCreateInfo,
-	layout: vk.PipelineLayout,
-) -> (
-	pipeline: Pipeline,
-) {
-
-	// vertex_input_state := states.vertex_input
-	// input_assembly_state := states.input_assembly
-	// rasterization_state := states.rasterization
-	// multisample_state := states.multisample
-	// color_blend_state := states.color_blend
-	// depth_stencil_state := states.depth_stencil
-
-	// viewport_state := vk.PipelineViewportStateCreateInfo {
-	// 	sType         = .PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-	// 	viewportCount = 1,
-	// 	scissorCount  = 1,
-	// }
-
-	// enabled_dynamic := [2]vk.DynamicState{.VIEWPORT, .SCISSOR}
-	// dynamic_state := vk.PipelineDynamicStateCreateInfo {
-	// 	sType             = .PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-	// 	dynamicStateCount = u32(len(enabled_dynamic)),
-	// 	pDynamicStates    = &enabled_dynamic[0],
-	// }
-
-	// color_format := swapchain.format.format
-	// rendering_info := vk.PipelineRenderingCreateInfo {
-	// 	sType                   = .PIPELINE_RENDERING_CREATE_INFO,
-	// 	colorAttachmentCount    = 1,
-	// 	pColorAttachmentFormats = &color_format,
-	// 	// depthAttachmentFormat   = swapchain.target.depth.format,
-	// 	// stencilAttachmentFormat = swapchain.target.depth.format,
-	// }
-
-	// pipeline_info := vk.GraphicsPipelineCreateInfo {
-	// 	sType               = .GRAPHICS_PIPELINE_CREATE_INFO,
-	// 	pNext               = &rendering_info,
-	// 	stageCount          = u32(len(stages)),
-	// 	pStages             = raw_data(stages),
-	// 	pVertexInputState   = &vertex_input_state,
-	// 	pInputAssemblyState = &input_assembly_state,
-	// 	pRasterizationState = &rasterization_state,
-	// 	pMultisampleState   = &multisample_state,
-	// 	pColorBlendState    = &color_blend_state,
-	// 	pDepthStencilState  = &depth_stencil_state,
-	// 	pViewportState      = &viewport_state,
-	// 	pDynamicState       = &dynamic_state,
-	// 	layout              = layout,
-	// }
-
-	// vk_ok(vk.CreateGraphicsPipelines(device, g_pipeline_cache, 1, &pipeline_info, nil, &pipeline.handle))
-
-	return pipeline
+PipelineInfoKind :: enum {
+	SHADER_STAGES,
+	VERTEX_INPUT,
+	INPUT_ASSEMBLY,
+	RASTERIZATION,
+	COLOR_BLEND,
+	MULTISAMPLE,
+	DEPTH_STENCIL,
+	TESSELLATION,
+	VIEWPORT,
+	DYNAMIC,
+	RENDERING,
+	LAYOUT,
 }
 
-shader_stage :: proc(stage: vk.ShaderStageFlag, module: vk.ShaderModule) -> vk.PipelineShaderStageCreateInfo {
-
-	return vk.PipelineShaderStageCreateInfo {
-		sType = .PIPELINE_SHADER_STAGE_CREATE_INFO,
-		stage = {stage},
-		module = module,
-		pName = "main",
-	}
+PipelinePatch :: union {
+	VertexInputPatch,
+	InputAssemblyPatch,
+	RasterizationPatch,
+	ColorBlendPatch,
+	MultisamplePatch,
+	DepthStencilPatch,
+	TessellationPatch,
+	ViewportPatch,
+	DynamicPatch,
+	RenderingPatch,
 }
 
-shader_module_make :: proc(device: vk.Device, code: []byte) -> (module: vk.ShaderModule) {
+MAX_SHADER_STAGES :: #config(MAX_SHADER_STAGES, 8)
+ShaderStages :: sa.Small_Array(MAX_SHADER_STAGES, vk.PipelineShaderStageCreateInfo)
 
-	create_info := vk.ShaderModuleCreateInfo {
-		sType    = .SHADER_MODULE_CREATE_INFO,
-		codeSize = len(code),
-		pCode    = cast(^u32)raw_data(code),
-	}
+VertexInput :: vk.PipelineVertexInputStateCreateInfo
+VertexInputPatch :: struct {}
 
-	vk_ok(vk.CreateShaderModule(device, &create_info, nil, &module))
-
-	return module
+InputAssembly :: vk.PipelineInputAssemblyStateCreateInfo
+InputAssemblyPatch :: struct {
+	topology:          Maybe(vk.PrimitiveTopology),
+	primitive_restart: Maybe(b32),
 }
 
-vertex_input :: proc(
-	bindings: []vk.VertexInputBindingDescription,
-	attributes: []vk.VertexInputAttributeDescription,
-) -> vk.PipelineVertexInputStateCreateInfo {
-
-	return vk.PipelineVertexInputStateCreateInfo {
-		sType = .PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		vertexBindingDescriptionCount = u32(len(bindings)),
-		pVertexBindingDescriptions = raw_data(bindings),
-		vertexAttributeDescriptionCount = u32(len(attributes)),
-		pVertexAttributeDescriptions = raw_data(attributes),
-	}
-
+Rasterization :: vk.PipelineRasterizationStateCreateInfo
+RasterizationPatch :: struct {
+	polygon_mode: Maybe(vk.PolygonMode),
+	line_width:   Maybe(f32),
+	cull_mode:    Maybe(vk.CullModeFlags),
+	front_face:   Maybe(vk.FrontFace),
 }
 
-input_assembly :: proc() -> vk.PipelineInputAssemblyStateCreateInfo {
+ColorBlend :: vk.PipelineColorBlendStateCreateInfo
+ColorBlendPatch :: struct {}
 
-	return vk.PipelineInputAssemblyStateCreateInfo {
-		sType = .PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		topology = .TRIANGLE_LIST,
-		primitiveRestartEnable = false,
-	}
+Multisample :: vk.PipelineMultisampleStateCreateInfo
+MultisamplePatch :: struct {}
+
+DepthStencil :: vk.PipelineDepthStencilStateCreateInfo
+DepthStencilPatch :: struct {}
+
+Tessellation :: vk.PipelineTessellationStateCreateInfo
+TessellationPatch :: struct {}
+
+Viewport :: vk.PipelineViewportStateCreateInfo
+ViewportPatch :: struct {}
+
+Dynamic :: vk.PipelineDynamicStateCreateInfo
+DynamicPatch :: struct {}
+
+Rendering :: vk.PipelineRenderingCreateInfo
+RenderingPatch :: struct {
+	color_attachment_count:   Maybe(u32),
+	color_attachment_formats: Maybe([^]vk.Format),
+	depth_attachment_format:  Maybe(vk.Format),
 }
 
-rasterization :: proc() -> vk.PipelineRasterizationStateCreateInfo {
+Layout :: vk.PipelineLayoutCreateInfo
 
-	return vk.PipelineRasterizationStateCreateInfo {
-		sType = .PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		depthClampEnable = false,
-		rasterizerDiscardEnable = false,
-		polygonMode = .FILL,
-		cullMode = {.BACK},
-		frontFace = .CLOCKWISE,
-		depthBiasEnable = false,
-		lineWidth = 1.0,
-	}
-}
+vulkan_pipeline_setup :: proc(self: ^Vulkan) {
 
-multisample :: proc(sample_count: vk.SampleCountFlags) -> vk.PipelineMultisampleStateCreateInfo {
+	background_pipelines_setup(self)
 
-	return vk.PipelineMultisampleStateCreateInfo {
-		sType = .PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		rasterizationSamples = sample_count,
-		sampleShadingEnable = false,
-		minSampleShading = 0.0,
-		pSampleMask = nil,
-		alphaToCoverageEnable = false,
-		alphaToOneEnable = false,
-	}
-}
+	pipeline_info := pipeline_info_defaults()
 
-ColorBlendMode :: enum {
-	DISABLED, // No blending (opaque)
-	ALPHA_BLEND, // Standard alpha blending
-}
+	triangle_vert_shader := shader_module_make(self.device.handle, #load("../shaders/bin/colored_triangle.vert.spv"))
+	triangle_frag_shader := shader_module_make(self.device.handle, #load("../shaders/bin/colored_triangle.frag.spv"))
+	defer vk.DestroyShaderModule(self.device.handle, triangle_vert_shader, nil)
+	defer vk.DestroyShaderModule(self.device.handle, triangle_frag_shader, nil)
 
-color_blend :: proc(mode: ColorBlendMode) -> vk.PipelineColorBlendStateCreateInfo {
-	attachment := vk.PipelineColorBlendAttachmentState {
-		colorWriteMask = {.R, .G, .B, .A},
-		colorBlendOp   = .ADD,
-		alphaBlendOp   = .ADD,
+	shader_stages: ShaderStages
+	sa.append(
+		&shader_stages,
+		shader_stage(.VERTEX, triangle_vert_shader),
+		shader_stage(.FRAGMENT, triangle_frag_shader),
+	)
+	pipeline_info[.SHADER_STAGES] = shader_stages
+
+	pipeline_patches: [PipelineInfoKind]PipelinePatch
+	pipeline_patches[.VERTEX_INPUT] = InputAssemblyPatch{}
+	pipeline_patches[.INPUT_ASSEMBLY] = InputAssemblyPatch{}
+	pipeline_patches[.RASTERIZATION] = RasterizationPatch{}
+	pipeline_patches[.COLOR_BLEND] = ColorBlendPatch{}
+	pipeline_patches[.MULTISAMPLE] = MultisamplePatch{}
+	pipeline_patches[.DEPTH_STENCIL] = DepthStencilPatch{}
+	pipeline_patches[.TESSELLATION] = TessellationPatch{}
+	pipeline_patches[.VIEWPORT] = ViewportPatch{}
+	pipeline_patches[.DYNAMIC] = DynamicPatch{}
+	pipeline_patches[.RENDERING] = RenderingPatch {
+		color_attachment_count   = 1,
+		color_attachment_formats = &self.swapchain.format.format,
+		depth_attachment_format  = .UNDEFINED,
 	}
 
-	switch mode {
-	case .DISABLED:
-		attachment.blendEnable = false
-		attachment.srcColorBlendFactor = .ONE
-		attachment.dstColorBlendFactor = .ZERO
-		attachment.srcAlphaBlendFactor = .ONE
-		attachment.dstAlphaBlendFactor = .ZERO
-
-	case .ALPHA_BLEND:
-		attachment.blendEnable = true
-		attachment.srcColorBlendFactor = .SRC_ALPHA
-		attachment.dstColorBlendFactor = .ONE_MINUS_SRC_ALPHA
-		attachment.srcAlphaBlendFactor = .ONE
-		attachment.dstAlphaBlendFactor = .ONE_MINUS_SRC_ALPHA
-	}
-
-	return vk.PipelineColorBlendStateCreateInfo {
-		sType = .PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-		attachmentCount = 1,
-		pAttachments = &attachment,
-	}
-}
-
-DepthStencilMode :: enum {
-	DEPTH_TEST_ENABLED,
-	DEPTH_TEST_DISABLED,
-}
-
-depth_stencil :: proc(mode: DepthStencilMode) -> vk.PipelineDepthStencilStateCreateInfo {
-	stencil_default := vk.StencilOpState {
-		failOp    = .KEEP,
-		passOp    = .KEEP,
-		compareOp = .ALWAYS,
-	}
-
-	switch mode {
-	case .DEPTH_TEST_ENABLED:
-		return vk.PipelineDepthStencilStateCreateInfo {
-			sType = .PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-			depthTestEnable = true,
-			depthWriteEnable = true,
-			depthCompareOp = .LESS_OR_EQUAL,
-			depthBoundsTestEnable = false,
-			stencilTestEnable = false,
-			front = stencil_default,
-		}
-	case .DEPTH_TEST_DISABLED:
-		return vk.PipelineDepthStencilStateCreateInfo {
-			sType                 = .PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-			depthTestEnable       = false,
-			depthWriteEnable      = false,
-			depthCompareOp        = .ALWAYS, // ignored, but set something legal
-			depthBoundsTestEnable = false,
-			stencilTestEnable     = false,
-			front                 = stencil_default,
-		}
-	}
-
-	return {} // fallback, shouldn't happen
+	pipeline_info_compose(self, &pipeline_info, &pipeline_patches, &self.pipelines[.TRIANGLE])
 }
 
 background_pipelines_setup :: proc(self: ^Vulkan) {
@@ -398,4 +240,184 @@ background_pipelines_setup :: proc(self: ^Vulkan) {
 		self.background.effects[.GRADIENT].handle,
 		self.background.effects[.SKY].handle,
 	)
+}
+
+shader_module_make :: proc(device: vk.Device, code: []byte) -> (module: vk.ShaderModule) {
+
+	create_info := vk.ShaderModuleCreateInfo {
+		sType    = .SHADER_MODULE_CREATE_INFO,
+		codeSize = len(code),
+		pCode    = cast(^u32)raw_data(code),
+	}
+
+	vk_ok(vk.CreateShaderModule(device, &create_info, nil, &module))
+
+	return module
+}
+
+shader_stage :: proc(stage: vk.ShaderStageFlag, module: vk.ShaderModule) -> vk.PipelineShaderStageCreateInfo {
+
+	return vk.PipelineShaderStageCreateInfo {
+		sType = .PIPELINE_SHADER_STAGE_CREATE_INFO,
+		stage = {stage},
+		module = module,
+		pName = "main",
+	}
+}
+
+pipeline_info_defaults :: proc() -> (infos: [PipelineInfoKind]PipelineInfo) {
+
+	infos[.VERTEX_INPUT] = VertexInput {
+		sType = .PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+	}
+
+	infos[.INPUT_ASSEMBLY] = InputAssembly {
+		sType                  = .PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		topology               = .TRIANGLE_LIST,
+		primitiveRestartEnable = false,
+	}
+
+	infos[.RASTERIZATION] = Rasterization {
+		sType       = .PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		polygonMode = .FILL,
+		lineWidth   = 1.0,
+		cullMode    = vk.CullModeFlags_NONE,
+		frontFace   = .CLOCKWISE,
+	}
+
+	infos[.COLOR_BLEND] = ColorBlend {
+		sType           = .PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+		logicOpEnable   = false,
+		logicOp         = .COPY,
+		attachmentCount = 1,
+		pAttachments    = &vk.PipelineColorBlendAttachmentState {
+			colorWriteMask = {.R, .G, .B, .A},
+			blendEnable = false,
+		},
+	}
+
+	min_sample_shading := f32(1.0)
+	infos[.MULTISAMPLE] = Multisample {
+		sType                 = .PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		rasterizationSamples  = {._1},
+		minSampleShading      = min_sample_shading,
+		sampleShadingEnable   = min_sample_shading < 1.0,
+		pSampleMask           = nil,
+		alphaToCoverageEnable = false,
+		alphaToOneEnable      = false,
+	}
+
+	infos[.DEPTH_STENCIL] = DepthStencil {
+		sType                 = .PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		depthTestEnable       = false,
+		depthWriteEnable      = false,
+		depthCompareOp        = .NEVER,
+		depthBoundsTestEnable = false,
+		stencilTestEnable     = false,
+		front                 = {},
+		back                  = {},
+		minDepthBounds        = 0.0,
+		maxDepthBounds        = 1.0,
+	}
+
+	infos[.TESSELLATION] = Tessellation {
+		sType = .PIPELINE_TESSELLATION_STATE_CREATE_INFO,
+	}
+
+	infos[.VIEWPORT] = Viewport {
+		sType         = .PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		viewportCount = 1,
+		scissorCount  = 1,
+	}
+
+	@(static) dynamic_states := [?]vk.DynamicState{.VIEWPORT, .SCISSOR}
+	infos[.DYNAMIC] = Dynamic {
+		sType             = .PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		pDynamicStates    = raw_data(dynamic_states[:]),
+		dynamicStateCount = u32(len(dynamic_states)),
+	}
+
+	infos[.RENDERING] = Rendering {
+		sType = .PIPELINE_RENDERING_CREATE_INFO,
+	}
+
+	infos[.LAYOUT] = Layout {
+		sType = .PIPELINE_LAYOUT_CREATE_INFO,
+	}
+
+	return infos
+}
+
+pipeline_info_compose :: proc(
+	self: ^Vulkan,
+	infos: ^[PipelineInfoKind]PipelineInfo,
+	patches: ^[PipelineInfoKind]PipelinePatch,
+	pipeline: ^GraphicsPipeline,
+) {
+
+	for kind in PipelineInfoKind {
+		patch := patches[kind]
+		if (patch != PipelinePatch{}) {
+			pipeline_info_patch(kind, &infos[kind], &patch)
+		}
+	}
+
+	vk_ok(vk.CreatePipelineLayout(self.device.handle, &infos[.LAYOUT].(Layout), nil, &pipeline.layout))
+	resource_stack_push(&self.device.cleanup_stack, pipeline.layout)
+
+	pipeline_info := vk.GraphicsPipelineCreateInfo {
+		sType               = .GRAPHICS_PIPELINE_CREATE_INFO,
+		pNext               = &infos[.RENDERING],
+		flags               = nil,
+		stageCount          = u32(sa.len(infos[.SHADER_STAGES].(ShaderStages))),
+		pStages             = raw_data(sa.slice(&infos[.SHADER_STAGES].(ShaderStages))),
+		pVertexInputState   = &infos[.VERTEX_INPUT].(VertexInput),
+		pInputAssemblyState = &infos[.INPUT_ASSEMBLY].(InputAssembly),
+		pTessellationState  = &infos[.TESSELLATION].(Tessellation),
+		pViewportState      = &infos[.VIEWPORT].(Viewport),
+		pRasterizationState = &infos[.RASTERIZATION].(Rasterization),
+		pMultisampleState   = &infos[.MULTISAMPLE].(Multisample),
+		pDepthStencilState  = &infos[.DEPTH_STENCIL].(DepthStencil),
+		pColorBlendState    = &infos[.COLOR_BLEND].(ColorBlend),
+		pDynamicState       = &infos[.DYNAMIC].(Dynamic),
+		layout              = pipeline.layout,
+		basePipelineHandle  = {},
+		basePipelineIndex   = -1,
+	}
+
+	vk_ok(vk.CreateGraphicsPipelines(self.device.handle, 0, 1, &pipeline_info, nil, &pipeline.handle))
+	resource_stack_push(&self.device.cleanup_stack, pipeline.handle)
+}
+
+pipeline_info_patch :: proc(kind: PipelineInfoKind, info: ^PipelineInfo, patch: ^PipelinePatch) {
+
+	#partial switch kind {
+	case .INPUT_ASSEMBLY:
+		input_assembly_patch(&info.(InputAssembly), &patch.(InputAssemblyPatch))
+	case .RASTERIZATION:
+		rasterization_patch(&info.(Rasterization), &patch.(RasterizationPatch))
+	// todo add cases as needed
+	}
+}
+
+unwrap_and_patch :: proc(field: ^$T, maybe: Maybe(T)) {
+
+	if maybe != nil {
+		field^ = maybe.?
+	}
+}
+
+input_assembly_patch :: proc(info: ^InputAssembly, patch: ^InputAssemblyPatch) {
+
+	unwrap_and_patch(&info.topology, patch.topology)
+	unwrap_and_patch(&info.primitiveRestartEnable, patch.primitive_restart)
+}
+
+
+rasterization_patch :: proc(info: ^Rasterization, patch: ^RasterizationPatch) {
+
+	unwrap_and_patch(&info.polygonMode, patch.polygon_mode)
+	unwrap_and_patch(&info.lineWidth, patch.line_width)
+	unwrap_and_patch(&info.cullMode, patch.cull_mode)
+	unwrap_and_patch(&info.frontFace, patch.front_face)
 }

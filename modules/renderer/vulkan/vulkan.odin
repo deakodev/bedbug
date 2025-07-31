@@ -26,6 +26,7 @@ Vulkan :: struct {
 	device:           Device,
 	swapchain:        Swapchain,
 	descriptor_pool:  vk.DescriptorPool,
+	pipelines:        [GraphicsEffect]GraphicsPipeline,
 	background:       Background,
 	imgui:            ^im.Context,
 	frames:           []Frame,
@@ -44,9 +45,7 @@ setup :: proc(self: ^Vulkan) {
 	vulkan_swapchain_setup(self)
 	vulkan_descriptor_setup(self)
 	vulkan_frame_setup(self)
-
-	background_pipelines_setup(self)
-
+	vulkan_pipeline_setup(self)
 	vulkan_imgui_setup(self)
 }
 
@@ -99,7 +98,11 @@ frame_draw :: proc(backend: ^Vulkan) {
 
 	frame_draw_background(backend, frame)
 
-	image_transition(frame.command_buffer, frame.draw_image.handle, .GENERAL, .TRANSFER_SRC_OPTIMAL)
+	image_transition(frame.command_buffer, frame.draw_image.handle, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL)
+
+	frame_draw_geometry(backend, frame)
+
+	image_transition(frame.command_buffer, frame.draw_image.handle, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL)
 	image_transition(frame.command_buffer, swapchain_image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
 
 	image_copy(
@@ -196,6 +199,52 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 		u32(math.ceil(f32(frame.draw_image.extent.height) / 16.0)),
 		1,
 	)
+}
+
+frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
+
+	color_attachment := vk.RenderingAttachmentInfo {
+		sType       = .RENDERING_ATTACHMENT_INFO,
+		imageView   = frame.draw_image.view,
+		imageLayout = .COLOR_ATTACHMENT_OPTIMAL,
+		loadOp      = .LOAD,
+		storeOp     = .STORE,
+	}
+
+	rendering_info := vk.RenderingInfo {
+		sType = .RENDERING_INFO,
+		renderArea = {offset = {0, 0}, extent = {frame.draw_image.extent.width, frame.draw_image.extent.height}},
+		layerCount = 1,
+		colorAttachmentCount = 1,
+		pColorAttachments = &color_attachment,
+	}
+
+	vk.CmdBeginRendering(frame.command_buffer, &rendering_info)
+
+	vk.CmdBindPipeline(frame.command_buffer, .GRAPHICS, self.pipelines[.TRIANGLE].handle)
+
+	viewport := vk.Viewport {
+		x        = 0,
+		y        = 0,
+		width    = f32(frame.draw_image.extent.width),
+		height   = f32(frame.draw_image.extent.height),
+		minDepth = 0.0,
+		maxDepth = 1.0,
+	}
+
+	vk.CmdSetViewport(frame.command_buffer, 0, 1, &viewport)
+
+	scissor := vk.Rect2D {
+		offset = {0, 0},
+		extent = {frame.draw_image.extent.width, frame.draw_image.extent.height},
+	}
+
+	vk.CmdSetScissor(frame.command_buffer, 0, 1, &scissor)
+
+	// Launch a draw command to draw 3 vertices
+	vk.CmdDraw(frame.command_buffer, 3, 1, 0, 0)
+
+	vk.CmdEndRendering(frame.command_buffer)
 }
 
 frame_draw_imgui :: proc(self: ^Vulkan, frame: ^Frame) {
