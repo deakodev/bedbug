@@ -20,6 +20,8 @@ Resource :: union {
 	vk.DeviceMemory,
 	vma.Allocator,
 	AllocatedImage,
+	AllocatedBuffer,
+	DescriptorAllocator,
 }
 
 ResourceStack :: struct {
@@ -60,8 +62,8 @@ resource_stack_flush :: proc(self: ^ResourceStack) {
 		return
 	}
 
-	#reverse for union_resource in self.resources {
-		switch resource in union_resource {
+	#reverse for &union_resource in self.resources {
+		switch &resource in union_resource {
 		case proc "c" ():
 			resource() // call cleanup proc
 		case vk.Pipeline:
@@ -90,6 +92,10 @@ resource_stack_flush :: proc(self: ^ResourceStack) {
 			vma.destroy_allocator(resource)
 		case AllocatedImage:
 			allocated_image_cleanup(self.device, resource)
+		case AllocatedBuffer:
+			allocated_buffer_cleanup(resource)
+		case DescriptorAllocator:
+			descriptor_allocator_cleanup(&resource)
 		}
 	}
 

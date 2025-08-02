@@ -129,7 +129,7 @@ RenderingPatch :: struct {
 
 Layout :: vk.PipelineLayoutCreateInfo
 
-vulkan_pipeline_setup :: proc(self: ^Vulkan) {
+pipeline_setup :: proc(self: ^Vulkan) {
 
 	background_pipelines_setup(self)
 
@@ -178,7 +178,7 @@ background_pipelines_setup :: proc(self: ^Vulkan) {
 	layout_info := vk.PipelineLayoutCreateInfo {
 		sType                  = .PIPELINE_LAYOUT_CREATE_INFO,
 		setLayoutCount         = 1,
-		pSetLayouts            = &self.frames[0].draw_image.descriptor.layout,
+		pSetLayouts            = &self.draw.descriptor.layout,
 		pushConstantRangeCount = 1,
 		pPushConstantRanges    = &push_constant,
 	}

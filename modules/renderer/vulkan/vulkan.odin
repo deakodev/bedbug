@@ -21,16 +21,36 @@ Background :: struct {
 	selected: ComputeEffect,
 }
 
+SceneUniformData :: struct {
+	view:               bb.mat4,
+	proj:               bb.mat4,
+	viewproj:           bb.mat4,
+	ambient_color:      bb.vec4,
+	sunlight_direction: bb.vec4, // w for sun power
+	sunlight_color:     bb.vec4,
+}
+
+Scene :: struct {
+	data:              SceneUniformData,
+	descriptor_layout: vk.DescriptorSetLayout,
+}
+
 Vulkan :: struct {
 	instance:         Instance,
 	device:           Device,
 	swapchain:        Swapchain,
-	descriptor_pool:  vk.DescriptorPool,
 	pipelines:        [GraphicsEffect]GraphicsPipeline,
 	background:       Background,
+	scene:            Scene,
 	imgui:            ^im.Context,
 	frames:           []Frame,
 	next_frame_index: u32,
+
+	// written via compute shader
+	draw:             struct {
+		image:      AllocatedImage,
+		descriptor: Descriptor,
+	},
 }
 
 MAX_CONCURRENT_FRAMES :: 2
@@ -40,13 +60,13 @@ setup :: proc(self: ^Vulkan) {
 	g_foreign_context = context
 	log.assert(self != nil, "renderer backend pointer is nil.")
 
-	vulkan_instance_setup(self)
-	vulkan_device_setup(self)
-	vulkan_swapchain_setup(self)
-	vulkan_descriptor_setup(self)
-	vulkan_frame_setup(self)
-	vulkan_pipeline_setup(self)
-	vulkan_imgui_setup(self)
+	instance_setup(self)
+	device_setup(self)
+	swapchain_setup(self)
+	descriptor_setup(self)
+	pipeline_setup(self)
+	frame_setup(self)
+	imgui_setup(self)
 }
 
 cleanup :: proc(self: ^Vulkan) {
@@ -54,16 +74,17 @@ cleanup :: proc(self: ^Vulkan) {
 	log.assert(self != nil, "renderer backend pointer is nil.")
 	log.ensure(vk.DeviceWaitIdle(self.device.handle) == .SUCCESS)
 
-	vulkan_frame_cleanup(self)
-	vulkan_swapchain_cleanup(self)
-	vulkan_device_cleanup(self)
-	vulkan_instance_cleanup(self)
+	frame_cleanup(self)
+	swapchain_cleanup(self)
+	device_cleanup(self)
+	instance_cleanup(self)
 }
 
 frame_prepare :: proc(backend: ^Vulkan) {
 
 	frame := _get_next_frame(backend)
 	resource_stack_flush(&frame.ephemeral_stack)
+	descriptor_allocator_clear_pools(&frame.descriptor_allocator)
 
 	vk_ok(vk.WaitForFences(backend.device.handle, 1, &frame.fence, true, max(u64)))
 	vk_ok(vk.ResetFences(backend.device.handle, 1, &frame.fence))
@@ -94,22 +115,22 @@ frame_draw :: proc(backend: ^Vulkan) {
 	}
 	vk_ok(vk.BeginCommandBuffer(frame.command_buffer, &begin_info))
 
-	image_transition(frame.command_buffer, frame.draw_image.handle, .UNDEFINED, .GENERAL)
+	image_transition(frame.command_buffer, backend.draw.image.handle, .UNDEFINED, .GENERAL)
 
 	frame_draw_background(backend, frame)
 
-	image_transition(frame.command_buffer, frame.draw_image.handle, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL)
+	image_transition(frame.command_buffer, backend.draw.image.handle, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL)
 
 	frame_draw_geometry(backend, frame)
 
-	image_transition(frame.command_buffer, frame.draw_image.handle, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL)
+	image_transition(frame.command_buffer, backend.draw.image.handle, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL)
 	image_transition(frame.command_buffer, swapchain_image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
 
 	image_copy(
 		frame.command_buffer,
-		frame.draw_image.handle,
+		backend.draw.image.handle,
 		swapchain_image,
-		{frame.draw_image.extent.width, frame.draw_image.extent.height},
+		{backend.draw.image.extent.width, backend.draw.image.extent.height},
 		backend.swapchain.extent,
 	)
 
@@ -173,16 +194,7 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 	effect := &self.background.effects[self.background.selected]
 	vk.CmdBindPipeline(frame.command_buffer, .COMPUTE, effect.handle)
 
-	vk.CmdBindDescriptorSets(
-		frame.command_buffer,
-		.COMPUTE,
-		effect.layout,
-		0,
-		1,
-		&frame.draw_image.descriptor.set,
-		0,
-		nil,
-	)
+	vk.CmdBindDescriptorSets(frame.command_buffer, .COMPUTE, effect.layout, 0, 1, &self.draw.descriptor.set, 0, nil)
 
 	vk.CmdPushConstants(
 		frame.command_buffer,
@@ -195,8 +207,8 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdDispatch(
 		frame.command_buffer,
-		u32(math.ceil(f32(frame.draw_image.extent.width) / 16.0)),
-		u32(math.ceil(f32(frame.draw_image.extent.height) / 16.0)),
+		u32(math.ceil(f32(self.draw.image.extent.width) / 16.0)),
+		u32(math.ceil(f32(self.draw.image.extent.height) / 16.0)),
 		1,
 	)
 }
@@ -205,7 +217,7 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	color_attachment := vk.RenderingAttachmentInfo {
 		sType       = .RENDERING_ATTACHMENT_INFO,
-		imageView   = frame.draw_image.view,
+		imageView   = self.draw.image.view,
 		imageLayout = .COLOR_ATTACHMENT_OPTIMAL,
 		loadOp      = .LOAD,
 		storeOp     = .STORE,
@@ -213,7 +225,7 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	rendering_info := vk.RenderingInfo {
 		sType = .RENDERING_INFO,
-		renderArea = {offset = {0, 0}, extent = {frame.draw_image.extent.width, frame.draw_image.extent.height}},
+		renderArea = {offset = {0, 0}, extent = {self.draw.image.extent.width, self.draw.image.extent.height}},
 		layerCount = 1,
 		colorAttachmentCount = 1,
 		pColorAttachments = &color_attachment,
@@ -226,8 +238,8 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 	viewport := vk.Viewport {
 		x        = 0,
 		y        = 0,
-		width    = f32(frame.draw_image.extent.width),
-		height   = f32(frame.draw_image.extent.height),
+		width    = f32(self.draw.image.extent.width),
+		height   = f32(self.draw.image.extent.height),
 		minDepth = 0.0,
 		maxDepth = 1.0,
 	}
@@ -236,10 +248,31 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	scissor := vk.Rect2D {
 		offset = {0, 0},
-		extent = {frame.draw_image.extent.width, frame.draw_image.extent.height},
+		extent = {self.draw.image.extent.width, self.draw.image.extent.height},
 	}
 
 	vk.CmdSetScissor(frame.command_buffer, 0, 1, &scissor)
+
+	scene_uniform_buffer := allocated_buffer_create(self, size_of(SceneUniformData), {.UNIFORM_BUFFER}, .Cpu_To_Gpu)
+
+	resource_stack_push(&frame.ephemeral_stack, scene_uniform_buffer)
+
+	scene_uniform_data := cast(^SceneUniformData)scene_uniform_buffer.alloc_info.mapped_data
+	scene_uniform_data^ = self.scene.data
+
+	global_descriptor := descriptor_allocator_new_set(&frame.descriptor_allocator, &self.scene.descriptor_layout)
+
+	writer: DescriptorWriter
+	descriptor_writer_setup(&writer, self.device.handle)
+	descriptor_writer_write_buffer(
+		&writer,
+		binding = 0,
+		buffer = scene_uniform_buffer.handle,
+		size = size_of(SceneUniformData),
+		offset = 0,
+		type = .UNIFORM_BUFFER,
+	)
+	descriptor_writer_update_set(&writer, global_descriptor)
 
 	// Launch a draw command to draw 3 vertices
 	vk.CmdDraw(frame.command_buffer, 3, 1, 0, 0)

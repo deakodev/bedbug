@@ -8,7 +8,7 @@ import "core:log"
 import "vendor:glfw"
 import vk "vendor:vulkan"
 
-vulkan_imgui_setup :: proc(self: ^Vulkan) {
+imgui_setup :: proc(self: ^Vulkan) {
 
 	im.CHECKVERSION()
 

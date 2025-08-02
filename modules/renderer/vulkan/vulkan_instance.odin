@@ -18,7 +18,7 @@ Instance :: struct {
 	surface:   vk.SurfaceKHR,
 }
 
-vulkan_instance_setup :: proc(self: ^Vulkan) {
+instance_setup :: proc(self: ^Vulkan) {
 
 	instance_layers := VALIDATION_LAYERS when VALIDATION_ENABLED else []cstring{}
 	instance_extensions := slice.clone_to_dynamic(INSTANCE_EXTENSIONS, context.temp_allocator)
@@ -30,7 +30,7 @@ vulkan_instance_setup :: proc(self: ^Vulkan) {
 			sType           = .DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 			messageSeverity = {.ERROR, .WARNING},
 			messageType     = {.GENERAL, .VALIDATION, .PERFORMANCE, .DEVICE_ADDRESS_BINDING},
-			pfnUserCallback = vulkan_message,
+			pfnUserCallback = debug_message,
 		}
 	}
 
@@ -67,7 +67,7 @@ vulkan_instance_setup :: proc(self: ^Vulkan) {
 	vk_ok(glfw.CreateWindowSurface(self.instance.handle, bb.core().window.handle, nil, &self.instance.surface))
 }
 
-vulkan_instance_cleanup :: proc(self: ^Vulkan) {
+instance_cleanup :: proc(self: ^Vulkan) {
 
 	vk.DestroySurfaceKHR(self.instance.handle, self.instance.surface, nil)
 	when VALIDATION_ENABLED {
@@ -76,7 +76,7 @@ vulkan_instance_cleanup :: proc(self: ^Vulkan) {
 	vk.DestroyInstance(self.instance.handle, nil)
 }
 
-vulkan_message :: proc "system" (
+debug_message :: proc "system" (
 	message_severity: vk.DebugUtilsMessageSeverityFlagsEXT,
 	message_type: vk.DebugUtilsMessageTypeFlagsEXT,
 	p_callback_data: ^vk.DebugUtilsMessengerCallbackDataEXT,

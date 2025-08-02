@@ -14,7 +14,7 @@ Device :: struct {
 	graphics_queue_index: u32,
 }
 
-vulkan_device_setup :: proc(self: ^Vulkan) {
+device_setup :: proc(self: ^Vulkan) {
 
 	self.device.physical = physical_device_select(self.instance.handle)
 
@@ -79,7 +79,7 @@ vulkan_device_setup :: proc(self: ^Vulkan) {
 	resource_stack_push(&self.device.cleanup_stack, self.device.vma_allocator)
 }
 
-vulkan_device_cleanup :: proc(self: ^Vulkan) {
+device_cleanup :: proc(self: ^Vulkan) {
 
 	resource_stack_cleanup(&self.device.cleanup_stack)
 	vk.DestroyDevice(self.device.handle, nil)

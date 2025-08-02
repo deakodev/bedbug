@@ -6,21 +6,16 @@ import "core:log"
 import "vendor:glfw"
 import vk "vendor:vulkan"
 
-GraphicsTarget :: struct {
-	// depth:        GraphicsDeviceImage,
-	sample_count: vk.SampleCountFlags,
-}
-
 Swapchain :: struct {
 	handle: vk.SwapchainKHR,
 	images: []vk.Image,
 	views:  []vk.ImageView,
 	format: vk.SurfaceFormatKHR,
 	extent: vk.Extent2D,
-	target: GraphicsTarget,
+	sample_count: vk.SampleCountFlags,
 }
 
-vulkan_swapchain_setup :: proc(self: ^Vulkan) {
+swapchain_setup :: proc(self: ^Vulkan) {
 
 	support, result := swapchain_support_query(self.device.physical, self.instance.surface, context.temp_allocator)
 	if result != .SUCCESS {
@@ -92,17 +87,10 @@ vulkan_swapchain_setup :: proc(self: ^Vulkan) {
 		resource_stack_push(&self.device.cleanup_stack, self.swapchain.views[index])
 	}
 
-	self.swapchain.target.sample_count = {._1}
-
-	image_extent := vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1}
-	depth_format := depth_format(self.device.physical, true)
-	depth_usage := vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT}
-
-	// swapchain.target.depth = device_image_allocate(device, depth_format, depth_usage, image_extent)
-
+	self.swapchain.sample_count = {._1}
 }
 
-vulkan_swapchain_cleanup :: proc(self: ^Vulkan) {
+swapchain_cleanup :: proc(self: ^Vulkan) {
 
 	delete(self.swapchain.views)
 	delete(self.swapchain.images)
