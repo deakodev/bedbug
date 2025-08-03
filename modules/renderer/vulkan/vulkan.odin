@@ -33,6 +33,12 @@ SceneUniformData :: struct {
 Scene :: struct {
 	data:              SceneUniformData,
 	descriptor_layout: vk.DescriptorSetLayout,
+	rectangle:         MeshBuffers,
+}
+
+Draw :: struct {
+	image:      AllocatedImage, // written via compute shader
+	descriptor: Descriptor,
 }
 
 Vulkan :: struct {
@@ -45,11 +51,14 @@ Vulkan :: struct {
 	imgui:            ^im.Context,
 	frames:           []Frame,
 	next_frame_index: u32,
-
-	// written via compute shader
-	draw:             struct {
-		image:      AllocatedImage,
-		descriptor: Descriptor,
+	draw:             Draw,
+	textures:         struct {
+		white_image:              AllocatedImage,
+		black_image:              AllocatedImage,
+		grey_image:               AllocatedImage,
+		error_checkerboard_image: AllocatedImage,
+		default_sampler_linear:   vk.Sampler,
+		default_sampler_nearest:  vk.Sampler,
 	},
 }
 
@@ -67,6 +76,8 @@ setup :: proc(self: ^Vulkan) {
 	pipeline_setup(self)
 	frame_setup(self)
 	imgui_setup(self)
+
+	scene_setup(self)
 }
 
 cleanup :: proc(self: ^Vulkan) {
@@ -84,10 +95,11 @@ frame_prepare :: proc(backend: ^Vulkan) {
 
 	frame := _get_next_frame(backend)
 	resource_stack_flush(&frame.ephemeral_stack)
-	descriptor_allocator_clear_pools(&frame.descriptor_allocator)
 
 	vk_ok(vk.WaitForFences(backend.device.handle, 1, &frame.fence, true, max(u64)))
 	vk_ok(vk.ResetFences(backend.device.handle, 1, &frame.fence))
+
+	descriptor_allocator_clear_pools(&frame.descriptor_allocator)
 
 	image_index: u32 = ---
 	result := vk.AcquireNextImageKHR(
@@ -233,8 +245,6 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdBeginRendering(frame.command_buffer, &rendering_info)
 
-	vk.CmdBindPipeline(frame.command_buffer, .GRAPHICS, self.pipelines[.TRIANGLE].handle)
-
 	viewport := vk.Viewport {
 		x        = 0,
 		y        = 0,
@@ -253,12 +263,28 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdSetScissor(frame.command_buffer, 0, 1, &scissor)
 
-	scene_uniform_buffer := allocated_buffer_create(self, size_of(SceneUniformData), {.UNIFORM_BUFFER}, .Cpu_To_Gpu)
+	// scene_uniform_buffer := allocated_buffer_create(self, size_of(SceneUniformData), {.UNIFORM_BUFFER}, .Cpu_To_Gpu)
 
-	resource_stack_push(&frame.ephemeral_stack, scene_uniform_buffer)
+	// resource_stack_push(&frame.ephemeral_stack, scene_uniform_buffer)
 
-	scene_uniform_data := cast(^SceneUniformData)scene_uniform_buffer.alloc_info.mapped_data
-	scene_uniform_data^ = self.scene.data
+	// scene_uniform_data := cast(^SceneUniformData)scene_uniform_buffer.alloc_info.mapped_data
+	// scene_uniform_data^ = self.scene.data
+
+	vk.CmdBindPipeline(frame.command_buffer, .GRAPHICS, self.pipelines[.MESH].handle)
+
+	push_constants := DrawPushConstants {
+		world_matrix = bb.mat4(1),
+		// vertex_buffer = self.scene.rectangle.vertex_buffer_address,s
+	}
+
+	vk.CmdPushConstants(
+		frame.command_buffer,
+		self.pipelines[.MESH].layout,
+		{.VERTEX},
+		0,
+		size_of(DrawPushConstants),
+		&push_constants,
+	)
 
 	global_descriptor := descriptor_allocator_new_set(&frame.descriptor_allocator, &self.scene.descriptor_layout)
 
@@ -267,15 +293,27 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 	descriptor_writer_write_buffer(
 		&writer,
 		binding = 0,
-		buffer = scene_uniform_buffer.handle,
-		size = size_of(SceneUniformData),
+		buffer = self.scene.rectangle.vertex_buffer.handle,
+		size = self.scene.rectangle.vertex_buffer.alloc_info.size,
 		offset = 0,
-		type = .UNIFORM_BUFFER,
+		type = .STORAGE_BUFFER,
 	)
 	descriptor_writer_update_set(&writer, global_descriptor)
 
-	// Launch a draw command to draw 3 vertices
-	vk.CmdDraw(frame.command_buffer, 3, 1, 0, 0)
+	vk.CmdBindDescriptorSets(
+		frame.command_buffer,
+		.GRAPHICS,
+		self.pipelines[.MESH].layout,
+		0,
+		1,
+		&global_descriptor,
+		0,
+		nil,
+	)
+
+	vk.CmdBindIndexBuffer(frame.command_buffer, self.scene.rectangle.index_buffer.handle, 0, .UINT32)
+
+	vk.CmdDrawIndexed(frame.command_buffer, 6, 1, 0, 0, 0)
 
 	vk.CmdEndRendering(frame.command_buffer)
 }
@@ -314,4 +352,68 @@ _get_next_frame :: #force_inline proc(backend: ^Vulkan) -> (frame: ^Frame) #no_b
 @(private = "file")
 _set_next_frame :: #force_inline proc(backend: ^Vulkan) {
 	backend.next_frame_index = (backend.next_frame_index + 1) % MAX_CONCURRENT_FRAMES
+}
+
+scene_setup :: proc(self: ^Vulkan) {
+
+	rect_vertices := [4]MeshVertex {
+		{position = {0.5, -0.5, 0}, color = {0, 0, 0.0, 1.0}},
+		{position = {0.5, 0.5, 0}, color = {0.5, 0.5, 0.5, 1.0}},
+		{position = {-0.5, -0.5, 0}, color = {1, 0, 0.0, 1.0}},
+		{position = {-0.5, 0.5, 0}, color = {0.0, 1.0, 0.0, 1.0}},
+	}
+
+	rect_indices := [6]u32{0, 1, 2, 2, 1, 3}
+
+	self.scene.rectangle = mesh_buffers_create(self, rect_indices[:], rect_vertices[:])
+
+	white := bb.pack_unorm_4x8({1, 1, 1, 1})
+	self.textures.white_image = allocated_image_create_from_data(self, &white, {1, 1, 1}, .R8G8B8A8_UNORM, {.SAMPLED})
+
+	grey := bb.pack_unorm_4x8({0.66, 0.66, 0.66, 1})
+	self.textures.grey_image = allocated_image_create_from_data(self, &grey, {1, 1, 1}, .R8G8B8A8_UNORM, {.SAMPLED})
+
+	black := bb.pack_unorm_4x8({0, 0, 0, 0})
+	self.textures.black_image = allocated_image_create_from_data(self, &black, {1, 1, 1}, .R8G8B8A8_UNORM, {.SAMPLED})
+
+	// Checkerboard image
+	magenta := bb.pack_unorm_4x8({1, 0, 1, 1})
+	pixels: [16 * 16]u32
+	for x in 0 ..< 16 {
+		for y in 0 ..< 16 {
+			pixels[y * 16 + x] = ((x % 2) ~ (y % 2)) != 0 ? magenta : black
+		}
+	}
+	self.textures.error_checkerboard_image = allocated_image_create_from_data(
+		self,
+		raw_data(pixels[:]),
+		{16, 16, 1},
+		.R8G8B8A8_UNORM,
+		{.SAMPLED},
+	)
+
+	sampler_info := vk.SamplerCreateInfo {
+		sType     = .SAMPLER_CREATE_INFO,
+		magFilter = .NEAREST,
+		minFilter = .NEAREST,
+	}
+
+	vk_ok(vk.CreateSampler(self.device.handle, &sampler_info, nil, &self.textures.default_sampler_nearest))
+
+	sampler_info.magFilter = .LINEAR
+	sampler_info.minFilter = .LINEAR
+
+	vk_ok(vk.CreateSampler(self.device.handle, &sampler_info, nil, &self.textures.default_sampler_linear))
+
+	resource_stack_push(
+		&self.device.cleanup_stack,
+		self.scene.rectangle.index_buffer,
+		self.scene.rectangle.vertex_buffer,
+		self.textures.white_image,
+		self.textures.grey_image,
+		self.textures.black_image,
+		self.textures.error_checkerboard_image,
+		self.textures.default_sampler_nearest,
+		self.textures.default_sampler_linear,
+	)
 }

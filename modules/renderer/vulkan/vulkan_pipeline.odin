@@ -31,7 +31,7 @@ GraphicsPipeline :: struct {
 }
 
 GraphicsEffect :: enum {
-	TRIANGLE,
+	MESH,
 }
 
 Pipeline :: union {
@@ -80,6 +80,7 @@ PipelinePatch :: union {
 	ViewportPatch,
 	DynamicPatch,
 	RenderingPatch,
+	LayoutPatch,
 }
 
 MAX_SHADER_STAGES :: #config(MAX_SHADER_STAGES, 8)
@@ -128,6 +129,12 @@ RenderingPatch :: struct {
 }
 
 Layout :: vk.PipelineLayoutCreateInfo
+LayoutPatch :: struct {
+	set_layout_count:          Maybe(u32),
+	p_set_layouts:             Maybe([^]vk.DescriptorSetLayout),
+	push_constant_range_count: Maybe(u32),
+	p_push_constant_ranges:    Maybe([^]vk.PushConstantRange),
+}
 
 pipeline_setup :: proc(self: ^Vulkan) {
 
@@ -135,36 +142,50 @@ pipeline_setup :: proc(self: ^Vulkan) {
 
 	pipeline_info := pipeline_info_defaults()
 
-	triangle_vert_shader := shader_module_make(self.device.handle, #load("../shaders/bin/colored_triangle.vert.spv"))
-	triangle_frag_shader := shader_module_make(self.device.handle, #load("../shaders/bin/colored_triangle.frag.spv"))
-	defer vk.DestroyShaderModule(self.device.handle, triangle_vert_shader, nil)
-	defer vk.DestroyShaderModule(self.device.handle, triangle_frag_shader, nil)
+	{ 	// MESH
+		mesh_vert_shader := shader_module_make(
+			self.device.handle,
+			#load("../shaders/bin/colored_triangle_mesh.vert.spv"),
+		)
+		mesh_frag_shader := shader_module_make(self.device.handle, #load("../shaders/bin/colored_triangle.frag.spv"))
+		defer vk.DestroyShaderModule(self.device.handle, mesh_vert_shader, nil)
+		defer vk.DestroyShaderModule(self.device.handle, mesh_frag_shader, nil)
 
-	shader_stages: ShaderStages
-	sa.append(
-		&shader_stages,
-		shader_stage(.VERTEX, triangle_vert_shader),
-		shader_stage(.FRAGMENT, triangle_frag_shader),
-	)
-	pipeline_info[.SHADER_STAGES] = shader_stages
+		shader_stages: ShaderStages
+		sa.append(&shader_stages, shader_stage(.VERTEX, mesh_vert_shader), shader_stage(.FRAGMENT, mesh_frag_shader))
+		pipeline_info[.SHADER_STAGES] = shader_stages
 
-	pipeline_patches: [PipelineInfoKind]PipelinePatch
-	pipeline_patches[.VERTEX_INPUT] = InputAssemblyPatch{}
-	pipeline_patches[.INPUT_ASSEMBLY] = InputAssemblyPatch{}
-	pipeline_patches[.RASTERIZATION] = RasterizationPatch{}
-	pipeline_patches[.COLOR_BLEND] = ColorBlendPatch{}
-	pipeline_patches[.MULTISAMPLE] = MultisamplePatch{}
-	pipeline_patches[.DEPTH_STENCIL] = DepthStencilPatch{}
-	pipeline_patches[.TESSELLATION] = TessellationPatch{}
-	pipeline_patches[.VIEWPORT] = ViewportPatch{}
-	pipeline_patches[.DYNAMIC] = DynamicPatch{}
-	pipeline_patches[.RENDERING] = RenderingPatch {
-		color_attachment_count   = 1,
-		color_attachment_formats = &self.swapchain.format.format,
-		depth_attachment_format  = .UNDEFINED,
+		pipeline_patches: [PipelineInfoKind]PipelinePatch
+		pipeline_patches[.VERTEX_INPUT] = InputAssemblyPatch{}
+		pipeline_patches[.INPUT_ASSEMBLY] = InputAssemblyPatch{}
+		pipeline_patches[.RASTERIZATION] = RasterizationPatch{}
+		pipeline_patches[.COLOR_BLEND] = ColorBlendPatch{}
+		pipeline_patches[.MULTISAMPLE] = MultisamplePatch{}
+		pipeline_patches[.DEPTH_STENCIL] = DepthStencilPatch{}
+		pipeline_patches[.TESSELLATION] = TessellationPatch{}
+		pipeline_patches[.VIEWPORT] = ViewportPatch{}
+		pipeline_patches[.DYNAMIC] = DynamicPatch{}
+		pipeline_patches[.RENDERING] = RenderingPatch {
+			color_attachment_count   = 1,
+			color_attachment_formats = &self.swapchain.format.format,
+			depth_attachment_format  = .UNDEFINED,
+		}
+
+		buffer_range := vk.PushConstantRange {
+			offset     = 0,
+			size       = size_of(DrawPushConstants),
+			stageFlags = {.VERTEX},
+		}
+
+		pipeline_patches[.LAYOUT] = LayoutPatch {
+			set_layout_count          = 1,
+			p_set_layouts             = &self.scene.descriptor_layout,
+			push_constant_range_count = 1,
+			p_push_constant_ranges    = &buffer_range,
+		}
+
+		pipeline_info_compose(self, &pipeline_info, &pipeline_patches, &self.pipelines[.MESH])
 	}
-
-	pipeline_info_compose(self, &pipeline_info, &pipeline_patches, &self.pipelines[.TRIANGLE])
 }
 
 background_pipelines_setup :: proc(self: ^Vulkan) {
@@ -396,6 +417,8 @@ pipeline_info_patch :: proc(kind: PipelineInfoKind, info: ^PipelineInfo, patch: 
 		input_assembly_patch(&info.(InputAssembly), &patch.(InputAssemblyPatch))
 	case .RASTERIZATION:
 		rasterization_patch(&info.(Rasterization), &patch.(RasterizationPatch))
+	case .LAYOUT:
+		layout_patch(&info.(Layout), &patch.(LayoutPatch))
 	// todo add cases as needed
 	}
 }
@@ -420,4 +443,12 @@ rasterization_patch :: proc(info: ^Rasterization, patch: ^RasterizationPatch) {
 	unwrap_and_patch(&info.lineWidth, patch.line_width)
 	unwrap_and_patch(&info.cullMode, patch.cull_mode)
 	unwrap_and_patch(&info.frontFace, patch.front_face)
+}
+
+layout_patch :: proc(info: ^Layout, patch: ^LayoutPatch) {
+
+	unwrap_and_patch(&info.setLayoutCount, patch.set_layout_count)
+	unwrap_and_patch(&info.pSetLayouts, patch.p_set_layouts)
+	unwrap_and_patch(&info.pushConstantRangeCount, patch.push_constant_range_count)
+	unwrap_and_patch(&info.pPushConstantRanges, patch.p_push_constant_ranges)
 }

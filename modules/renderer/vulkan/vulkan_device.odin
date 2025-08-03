@@ -12,6 +12,11 @@ Device :: struct {
 	cleanup_stack:        ResourceStack,
 	graphics_queue:       vk.Queue,
 	graphics_queue_index: u32,
+	immediate:            struct {
+		pool:    vk.CommandPool,
+		command: vk.CommandBuffer,
+		fence:   vk.Fence,
+	},
 }
 
 device_setup :: proc(self: ^Vulkan) {
@@ -24,10 +29,10 @@ device_setup :: proc(self: ^Vulkan) {
 	}
 
 	features_12 := vk.PhysicalDeviceVulkan12Features {
-		sType               = .PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-		bufferDeviceAddress = true,
-		descriptorIndexing  = true,
-		pNext               = &features_11,
+		sType = .PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		// bufferDeviceAddress = true,
+		// descriptorIndexing  = true,
+		pNext = &features_11,
 	}
 
 	features_13 := vk.PhysicalDeviceVulkan13Features {
@@ -61,22 +66,46 @@ device_setup :: proc(self: ^Vulkan) {
 
 	vk_ok(vk.CreateDevice(self.device.physical, &device_info, nil, &self.device.handle))
 
-	vk.GetDeviceQueue(self.device.handle, graphics_index, 0, &self.device.graphics_queue)
-
 	resource_stack_setup(&self.device.cleanup_stack, self.device.handle)
+
+	vk.GetDeviceQueue(self.device.handle, graphics_index, 0, &self.device.graphics_queue)
 
 	vma_vulkan_functions := vma.create_vulkan_functions()
 	allocator_create_info: vma.Allocator_Create_Info = {
-		flags            = {.Buffer_Device_Address},
 		instance         = self.instance.handle,
 		physical_device  = self.device.physical,
 		device           = self.device.handle,
 		vulkan_functions = &vma_vulkan_functions,
 	}
-
 	vk_ok(vma.create_allocator(allocator_create_info, &self.device.vma_allocator))
 
-	resource_stack_push(&self.device.cleanup_stack, self.device.vma_allocator)
+	command_pool_info := vk.CommandPoolCreateInfo {
+		sType            = .COMMAND_POOL_CREATE_INFO,
+		queueFamilyIndex = self.device.graphics_queue_index,
+		flags            = {.RESET_COMMAND_BUFFER},
+	}
+	vk_ok(vk.CreateCommandPool(self.device.handle, &command_pool_info, nil, &self.device.immediate.pool))
+
+	command_alloc_info := vk.CommandBufferAllocateInfo {
+		sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
+		commandPool        = self.device.immediate.pool,
+		commandBufferCount = 1,
+		level              = .PRIMARY,
+	}
+	vk_ok(vk.AllocateCommandBuffers(self.device.handle, &command_alloc_info, &self.device.immediate.command))
+
+	fence_create_info := vk.FenceCreateInfo {
+		sType = .FENCE_CREATE_INFO,
+		flags = {.SIGNALED},
+	}
+	vk_ok(vk.CreateFence(self.device.handle, &fence_create_info, nil, &self.device.immediate.fence))
+
+	resource_stack_push(
+		&self.device.cleanup_stack,
+		self.device.vma_allocator,
+		self.device.immediate.pool,
+		self.device.immediate.fence,
+	)
 }
 
 device_cleanup :: proc(self: ^Vulkan) {

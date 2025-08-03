@@ -7,11 +7,11 @@ import "vendor:glfw"
 import vk "vendor:vulkan"
 
 Swapchain :: struct {
-	handle: vk.SwapchainKHR,
-	images: []vk.Image,
-	views:  []vk.ImageView,
-	format: vk.SurfaceFormatKHR,
-	extent: vk.Extent2D,
+	handle:       vk.SwapchainKHR,
+	images:       []vk.Image,
+	views:        []vk.ImageView,
+	format:       vk.SurfaceFormatKHR,
+	extent:       vk.Extent2D,
 	sample_count: vk.SampleCountFlags,
 }
 

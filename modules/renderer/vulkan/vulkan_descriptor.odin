@@ -13,21 +13,24 @@ Descriptor :: struct {
 
 descriptor_setup :: proc(self: ^Vulkan) {
 
-	{ // scene
+	{ 	// scene
 		descriptor_bindings: DescriptorBindings
 		sa.append(
 			&descriptor_bindings,
-			vk.DescriptorSetLayoutBinding{binding = 0, descriptorCount = 1, descriptorType = .UNIFORM_BUFFER},
+			vk.DescriptorSetLayoutBinding{binding = 0, descriptorCount = 1, descriptorType = .STORAGE_BUFFER},
 		)
-		self.scene.descriptor_layout = descriptor_set_new_layout(
-			self.device.handle,
-			&descriptor_bindings,
-			{.VERTEX, .FRAGMENT},
-		)
+		self.scene.descriptor_layout = descriptor_set_new_layout(self.device.handle, &descriptor_bindings, {.VERTEX})
 	}
 
 	// todo: move the draw image creation to proper location
-	{ // draw
+	{ 	// draw
+		self.draw.image = allocated_image_create(
+			self,
+			vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1},
+			vk.Format.R16G16B16A16_SFLOAT,
+			vk.ImageUsageFlags{.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT},
+		)
+
 		pool_ratios: DescriptorPoolSizeRatios
 		sa.append(
 			&pool_ratios,
@@ -54,60 +57,12 @@ descriptor_setup :: proc(self: ^Vulkan) {
 
 		vk_ok(vk.CreateDescriptorPool(self.device.handle, &pool_info, nil, &self.draw.descriptor.pool))
 
-		image_info := vk.ImageCreateInfo {
-			sType       = .IMAGE_CREATE_INFO,
-			imageType   = .D2,
-			format      = .R16G16B16A16_SFLOAT,
-			extent      = {self.swapchain.extent.width, self.swapchain.extent.height, 1},
-			mipLevels   = 1,
-			arrayLayers = 1,
-			samples     = {._1},
-			tiling      = .OPTIMAL,
-			usage       = {.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT},
-		}
-
-		image_alloc_info := vma.Allocation_Create_Info {
-			usage          = .Gpu_Only,
-			required_flags = {.DEVICE_LOCAL},
-		}
-
-		image_view_info := vk.ImageViewCreateInfo {
-			sType = .IMAGE_VIEW_CREATE_INFO,
-			viewType = .D2,
-			format = image_info.format,
-			subresourceRange = {levelCount = 1, layerCount = 1, aspectMask = {.COLOR}},
-			image = self.draw.image.handle,
-		}
-
 		descriptor_bindings: DescriptorBindings
 		sa.append(
 			&descriptor_bindings,
 			vk.DescriptorSetLayoutBinding{binding = 0, descriptorCount = 1, descriptorType = .STORAGE_IMAGE},
 		)
 		self.draw.descriptor.layout = descriptor_set_new_layout(self.device.handle, &descriptor_bindings, {.COMPUTE})
-
-		{ 	// draw image
-			self.draw.image = AllocatedImage {
-				format    = image_info.format,
-				extent    = image_info.extent,
-				allocator = self.device.vma_allocator,
-			}
-
-			vk_ok(
-				vma.create_image(
-					self.device.vma_allocator,
-					image_info,
-					image_alloc_info,
-					&self.draw.image.handle,
-					&self.draw.image.allocation,
-					nil,
-				),
-			)
-
-			image_view_info.image = self.draw.image.handle
-
-			vk_ok(vk.CreateImageView(self.device.handle, &image_view_info, nil, &self.draw.image.view))
-		}
 
 		alloc_info := vk.DescriptorSetAllocateInfo {
 			sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
