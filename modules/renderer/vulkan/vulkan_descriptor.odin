@@ -1,5 +1,6 @@
 package vulkan_backend
 
+import bb "bedbug:core"
 import "bedbug:vendor/vma"
 import sa "core:container/small_array"
 import "core:log"
@@ -24,16 +25,25 @@ descriptor_setup :: proc(self: ^Vulkan) {
 
 	// todo: move the draw image creation to proper location
 	{ 	// draw
+		width, height := bb.window_resolution()
+
+		self.render_target.scale = 1.0
+		self.render_target.extent = vk.Extent3D {
+			width  = width,
+			height = height,
+			depth  = 1,
+		}
+
 		self.render_target.color_image = allocated_image_create(
 			self,
-			vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1},
+			self.render_target.extent,
 			vk.Format.R16G16B16A16_SFLOAT,
 			vk.ImageUsageFlags{.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT},
 		)
 
 		self.render_target.depth_image = allocated_image_create(
 			self,
-			vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1},
+			self.render_target.extent,
 			vk.Format.D32_SFLOAT,
 			vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT},
 		)

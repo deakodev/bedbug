@@ -22,6 +22,7 @@ swapchain_setup :: proc(self: ^Vulkan) {
 		log.panicf("failed to query swapchain support: %v", result)
 	}
 
+	self.swapchain.sample_count = {._1}
 	self.swapchain.format = swapchain_surface_format_select(support.formats)
 	self.swapchain.extent = swapchain_extent_select(support.capabilities)
 	present_mode := swapchain_present_mode_select(support.presentModes)
@@ -38,6 +39,8 @@ swapchain_setup :: proc(self: ^Vulkan) {
 		pre_transform = support.capabilities.currentTransform
 	}
 
+	old_swapchain := self.swapchain.handle
+
 	create_info := vk.SwapchainCreateInfoKHR {
 		sType                 = .SWAPCHAIN_CREATE_INFO_KHR,
 		surface               = self.instance.surface,
@@ -53,9 +56,17 @@ swapchain_setup :: proc(self: ^Vulkan) {
 		imageSharingMode      = .EXCLUSIVE,
 		presentMode           = present_mode,
 		clipped               = true,
+		oldSwapchain          = old_swapchain,
 	}
 
-	vk_ok(vk.CreateSwapchainKHR(self.device.handle, &create_info, nil, &self.swapchain.handle))
+	new_swapchain: vk.SwapchainKHR
+	vk_ok(vk.CreateSwapchainKHR(self.device.handle, &create_info, nil, &new_swapchain))
+
+	if old_swapchain != 0 {
+		swapchain_cleanup(self)
+	}
+
+	self.swapchain.handle = new_swapchain
 
 	self.swapchain.images = make([]vk.Image, int(image_count))
 	self.swapchain.views = make([]vk.ImageView, int(image_count))
@@ -86,8 +97,6 @@ swapchain_setup :: proc(self: ^Vulkan) {
 
 		resource_stack_push(&self.device.cleanup_stack, self.swapchain.views[index])
 	}
-
-	self.swapchain.sample_count = {._1}
 }
 
 swapchain_cleanup :: proc(self: ^Vulkan) {
@@ -96,6 +105,12 @@ swapchain_cleanup :: proc(self: ^Vulkan) {
 	delete(self.swapchain.images)
 
 	vk.DestroySwapchainKHR(self.device.handle, self.swapchain.handle, nil)
+}
+
+swapchain_resize :: proc(self: ^Vulkan) {
+
+	vk_ok(vk.DeviceWaitIdle(self.device.handle))
+	swapchain_setup(self)
 }
 
 Swapchain_Support :: struct {
@@ -164,9 +179,9 @@ swapchain_present_mode_select :: proc(modes: []vk.PresentModeKHR) -> vk.PresentM
 
 swapchain_extent_select :: proc(capabilities: vk.SurfaceCapabilitiesKHR) -> vk.Extent2D {
 
-	if capabilities.currentExtent.width != max(u32) {
-		return capabilities.currentExtent
-	}
+	// if capabilities.currentExtent.width != max(u32) {
+	// 	return capabilities.currentExtent
+	// }
 
 	width, height := glfw.GetFramebufferSize(bb.core().window.handle)
 	return {

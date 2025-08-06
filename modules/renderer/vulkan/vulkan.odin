@@ -41,6 +41,8 @@ RenderTarget :: struct {
 	color_image: AllocatedImage, // written via compute shader
 	depth_image: AllocatedImage,
 	descriptor:  Descriptor,
+	extent:      vk.Extent3D,
+	scale:       f32,
 }
 
 Vulkan :: struct {
@@ -109,7 +111,17 @@ frame_prepare :: proc(backend: ^Vulkan) {
 
 	descriptor_allocator_clear_pools(&frame.descriptor_allocator)
 
-	image_index: u32 = ---
+	backend.render_target.extent = {
+		width  = u32(
+			f32(min(backend.swapchain.extent.width, backend.render_target.color_image.extent.width)) *
+			backend.render_target.scale,
+		),
+		height = u32(
+			f32(min(backend.swapchain.extent.height, backend.render_target.color_image.extent.height)) *
+			backend.render_target.scale,
+		),
+	}
+
 	result := vk.AcquireNextImageKHR(
 		backend.device.handle,
 		backend.swapchain.handle,
@@ -119,7 +131,9 @@ frame_prepare :: proc(backend: ^Vulkan) {
 		&frame.image_index,
 	)
 
-	// todo: check result
+	if result != .ERROR_OUT_OF_DATE_KHR && result != .SUBOPTIMAL_KHR { 	// handled after vk.QueuePresentKHR
+		vk_ok(result)
+	}
 }
 
 frame_draw :: proc(backend: ^Vulkan) {
@@ -167,7 +181,7 @@ frame_draw :: proc(backend: ^Vulkan) {
 		frame.command_buffer,
 		backend.render_target.color_image.handle,
 		swapchain_image,
-		{backend.render_target.color_image.extent.width, backend.render_target.color_image.extent.height},
+		{backend.render_target.extent.width, backend.render_target.extent.height},
 		backend.swapchain.extent,
 	)
 
@@ -221,7 +235,11 @@ frame_draw :: proc(backend: ^Vulkan) {
 
 	result := vk.QueuePresentKHR(backend.device.graphics_queue, &present_info)
 
-	// todo: check result
+	if result == .ERROR_OUT_OF_DATE_KHR || result == .SUBOPTIMAL_KHR {
+		swapchain_resize(backend)
+	} else {
+		vk_ok(result)
+	}
 
 	_set_next_frame(backend)
 }
@@ -253,16 +271,16 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdDispatch(
 		frame.command_buffer,
-		u32(math.ceil(f32(self.render_target.color_image.extent.width) / 16.0)),
-		u32(math.ceil(f32(self.render_target.color_image.extent.height) / 16.0)),
+		u32(math.ceil(f32(self.render_target.extent.width) / 16.0)),
+		u32(math.ceil(f32(self.render_target.extent.height) / 16.0)),
 		1,
 	)
 }
 
 frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
-	image_width := self.render_target.color_image.extent.width
-	image_height := self.render_target.color_image.extent.height
+	image_width := self.render_target.extent.width
+	image_height := self.render_target.extent.height
 
 	color_attachment := vk.RenderingAttachmentInfo {
 		sType       = .RENDERING_ATTACHMENT_INFO,
@@ -289,7 +307,7 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 		pColorAttachments = &color_attachment,
 		pDepthAttachment = &depth_attachment,
 	}
-
+	log.debug(rendering_info.renderArea)
 	vk.CmdBeginRendering(frame.command_buffer, &rendering_info)
 
 	viewport := vk.Viewport {

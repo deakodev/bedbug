@@ -58,6 +58,13 @@ window_cleanup :: proc() {
 	}
 }
 
+window_resolution :: proc() -> (u32, u32) {
+
+	mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor())
+	log.ensure(mode != nil)
+	return u32(mode.width), u32(mode.height)
+}
+
 window_poll_events :: proc() {
 
 	glfw.PollEvents()
