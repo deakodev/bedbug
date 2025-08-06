@@ -34,11 +34,13 @@ Scene :: struct {
 	data:              SceneUniformData,
 	descriptor_layout: vk.DescriptorSetLayout,
 	rectangle:         MeshBuffers,
+	test_meshes:       Meshes,
 }
 
-Draw :: struct {
-	image:      AllocatedImage, // written via compute shader
-	descriptor: Descriptor,
+RenderTarget :: struct {
+	color_image: AllocatedImage, // written via compute shader
+	depth_image: AllocatedImage,
+	descriptor:  Descriptor,
 }
 
 Vulkan :: struct {
@@ -51,7 +53,7 @@ Vulkan :: struct {
 	imgui:            ^im.Context,
 	frames:           []Frame,
 	next_frame_index: u32,
-	draw:             Draw,
+	render_target:    RenderTarget,
 	textures:         struct {
 		white_image:              AllocatedImage,
 		black_image:              AllocatedImage,
@@ -84,6 +86,12 @@ cleanup :: proc(self: ^Vulkan) {
 
 	log.assert(self != nil, "renderer backend pointer is nil.")
 	log.ensure(vk.DeviceWaitIdle(self.device.handle) == .SUCCESS)
+
+	for &mesh in self.scene.test_meshes {
+		allocated_buffer_cleanup(mesh.buffers.index_buffer)
+		allocated_buffer_cleanup(mesh.buffers.vertex_buffer)
+	}
+	meshes_destroy(&self.scene.test_meshes)
 
 	frame_cleanup(self)
 	swapchain_cleanup(self)
@@ -127,22 +135,39 @@ frame_draw :: proc(backend: ^Vulkan) {
 	}
 	vk_ok(vk.BeginCommandBuffer(frame.command_buffer, &begin_info))
 
-	image_transition(frame.command_buffer, backend.draw.image.handle, .UNDEFINED, .GENERAL)
+	image_transition(frame.command_buffer, backend.render_target.color_image.handle, .UNDEFINED, .GENERAL)
 
 	frame_draw_background(backend, frame)
 
-	image_transition(frame.command_buffer, backend.draw.image.handle, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL)
+	image_transition(
+		frame.command_buffer,
+		backend.render_target.color_image.handle,
+		.GENERAL,
+		.COLOR_ATTACHMENT_OPTIMAL,
+	)
+
+	image_transition(
+		frame.command_buffer,
+		backend.render_target.depth_image.handle,
+		.UNDEFINED,
+		.DEPTH_ATTACHMENT_OPTIMAL,
+	)
 
 	frame_draw_geometry(backend, frame)
 
-	image_transition(frame.command_buffer, backend.draw.image.handle, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL)
+	image_transition(
+		frame.command_buffer,
+		backend.render_target.color_image.handle,
+		.COLOR_ATTACHMENT_OPTIMAL,
+		.TRANSFER_SRC_OPTIMAL,
+	)
 	image_transition(frame.command_buffer, swapchain_image, .UNDEFINED, .TRANSFER_DST_OPTIMAL)
 
 	image_copy(
 		frame.command_buffer,
-		backend.draw.image.handle,
+		backend.render_target.color_image.handle,
 		swapchain_image,
-		{backend.draw.image.extent.width, backend.draw.image.extent.height},
+		{backend.render_target.color_image.extent.width, backend.render_target.color_image.extent.height},
 		backend.swapchain.extent,
 	)
 
@@ -206,7 +231,16 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 	effect := &self.background.effects[self.background.selected]
 	vk.CmdBindPipeline(frame.command_buffer, .COMPUTE, effect.handle)
 
-	vk.CmdBindDescriptorSets(frame.command_buffer, .COMPUTE, effect.layout, 0, 1, &self.draw.descriptor.set, 0, nil)
+	vk.CmdBindDescriptorSets(
+		frame.command_buffer,
+		.COMPUTE,
+		effect.layout,
+		0,
+		1,
+		&self.render_target.descriptor.set,
+		0,
+		nil,
+	)
 
 	vk.CmdPushConstants(
 		frame.command_buffer,
@@ -219,28 +253,41 @@ frame_draw_background :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	vk.CmdDispatch(
 		frame.command_buffer,
-		u32(math.ceil(f32(self.draw.image.extent.width) / 16.0)),
-		u32(math.ceil(f32(self.draw.image.extent.height) / 16.0)),
+		u32(math.ceil(f32(self.render_target.color_image.extent.width) / 16.0)),
+		u32(math.ceil(f32(self.render_target.color_image.extent.height) / 16.0)),
 		1,
 	)
 }
 
 frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
+	image_width := self.render_target.color_image.extent.width
+	image_height := self.render_target.color_image.extent.height
+
 	color_attachment := vk.RenderingAttachmentInfo {
 		sType       = .RENDERING_ATTACHMENT_INFO,
-		imageView   = self.draw.image.view,
+		imageView   = self.render_target.color_image.view,
 		imageLayout = .COLOR_ATTACHMENT_OPTIMAL,
 		loadOp      = .LOAD,
 		storeOp     = .STORE,
 	}
 
+	depth_attachment := vk.RenderingAttachmentInfo {
+		sType       = .RENDERING_ATTACHMENT_INFO,
+		imageView   = self.render_target.depth_image.view,
+		imageLayout = .DEPTH_ATTACHMENT_OPTIMAL,
+		loadOp      = .CLEAR,
+		storeOp     = .STORE,
+	}
+	depth_attachment.clearValue.depthStencil.depth = 0.0
+
 	rendering_info := vk.RenderingInfo {
 		sType = .RENDERING_INFO,
-		renderArea = {offset = {0, 0}, extent = {self.draw.image.extent.width, self.draw.image.extent.height}},
+		renderArea = {offset = {0, 0}, extent = {image_width, image_height}},
 		layerCount = 1,
 		colorAttachmentCount = 1,
 		pColorAttachments = &color_attachment,
+		pDepthAttachment = &depth_attachment,
 	}
 
 	vk.CmdBeginRendering(frame.command_buffer, &rendering_info)
@@ -248,8 +295,8 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 	viewport := vk.Viewport {
 		x        = 0,
 		y        = 0,
-		width    = f32(self.draw.image.extent.width),
-		height   = f32(self.draw.image.extent.height),
+		width    = f32(image_width),
+		height   = f32(image_height),
 		minDepth = 0.0,
 		maxDepth = 1.0,
 	}
@@ -258,23 +305,24 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 
 	scissor := vk.Rect2D {
 		offset = {0, 0},
-		extent = {self.draw.image.extent.width, self.draw.image.extent.height},
+		extent = {image_width, image_height},
 	}
 
 	vk.CmdSetScissor(frame.command_buffer, 0, 1, &scissor)
 
-	// scene_uniform_buffer := allocated_buffer_create(self, size_of(SceneUniformData), {.UNIFORM_BUFFER}, .Cpu_To_Gpu)
-
-	// resource_stack_push(&frame.ephemeral_stack, scene_uniform_buffer)
-
-	// scene_uniform_data := cast(^SceneUniformData)scene_uniform_buffer.alloc_info.mapped_data
-	// scene_uniform_data^ = self.scene.data
-
 	vk.CmdBindPipeline(frame.command_buffer, .GRAPHICS, self.pipelines[.MESH].handle)
 
+	view := bb.mat4_translate(bb.vec3{0, 0, -2})
+
+	projection := bb.mat4_perspective_reverse_z(
+		f32(bb.to_radians(f32(70.0))),
+		f32(image_width) / f32(image_height),
+		0.1,
+		true,
+	)
+
 	push_constants := DrawPushConstants {
-		world_matrix = bb.mat4(1),
-		// vertex_buffer = self.scene.rectangle.vertex_buffer_address,s
+		world_matrix = projection * view,
 	}
 
 	vk.CmdPushConstants(
@@ -286,6 +334,13 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 		&push_constants,
 	)
 
+	scene_uniform_buffer := allocated_buffer_create(self, size_of(SceneUniformData), {.UNIFORM_BUFFER}, .Cpu_To_Gpu)
+
+	resource_stack_push(&frame.ephemeral_stack, scene_uniform_buffer)
+
+	scene_uniform_data := cast(^SceneUniformData)scene_uniform_buffer.alloc_info.mapped_data
+	scene_uniform_data^ = self.scene.data
+
 	global_descriptor := descriptor_allocator_new_set(&frame.descriptor_allocator, &self.scene.descriptor_layout)
 
 	writer: DescriptorWriter
@@ -293,8 +348,8 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 	descriptor_writer_write_buffer(
 		&writer,
 		binding = 0,
-		buffer = self.scene.rectangle.vertex_buffer.handle,
-		size = self.scene.rectangle.vertex_buffer.alloc_info.size,
+		buffer = self.scene.test_meshes[2].buffers.vertex_buffer.handle,
+		size = self.scene.test_meshes[2].buffers.vertex_buffer.alloc_info.size,
 		offset = 0,
 		type = .STORAGE_BUFFER,
 	)
@@ -311,9 +366,16 @@ frame_draw_geometry :: proc(self: ^Vulkan, frame: ^Frame) {
 		nil,
 	)
 
-	vk.CmdBindIndexBuffer(frame.command_buffer, self.scene.rectangle.index_buffer.handle, 0, .UINT32)
+	vk.CmdBindIndexBuffer(frame.command_buffer, self.scene.test_meshes[2].buffers.index_buffer.handle, 0, .UINT32)
 
-	vk.CmdDrawIndexed(frame.command_buffer, 6, 1, 0, 0, 0)
+	vk.CmdDrawIndexed(
+		frame.command_buffer,
+		self.scene.test_meshes[2].surfaces[0].count,
+		1,
+		self.scene.test_meshes[2].surfaces[0].start_index,
+		0,
+		0,
+	)
 
 	vk.CmdEndRendering(frame.command_buffer)
 }
@@ -355,6 +417,8 @@ _set_next_frame :: #force_inline proc(backend: ^Vulkan) {
 }
 
 scene_setup :: proc(self: ^Vulkan) {
+
+	self.scene.test_meshes, _ = meshes_create_from_gtlf(self, "modules/renderer/assets/basicmesh.glb")
 
 	rect_vertices := [4]MeshVertex {
 		{position = {0.5, -0.5, 0}, color = {0, 0, 0.0, 1.0}},

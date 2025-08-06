@@ -24,11 +24,18 @@ descriptor_setup :: proc(self: ^Vulkan) {
 
 	// todo: move the draw image creation to proper location
 	{ 	// draw
-		self.draw.image = allocated_image_create(
+		self.render_target.color_image = allocated_image_create(
 			self,
 			vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1},
 			vk.Format.R16G16B16A16_SFLOAT,
 			vk.ImageUsageFlags{.TRANSFER_SRC, .TRANSFER_DST, .STORAGE, .COLOR_ATTACHMENT},
+		)
+
+		self.render_target.depth_image = allocated_image_create(
+			self,
+			vk.Extent3D{self.swapchain.extent.width, self.swapchain.extent.height, 1},
+			vk.Format.D32_SFLOAT,
+			vk.ImageUsageFlags{.DEPTH_STENCIL_ATTACHMENT},
 		)
 
 		pool_ratios: DescriptorPoolSizeRatios
@@ -55,23 +62,27 @@ descriptor_setup :: proc(self: ^Vulkan) {
 			pPoolSizes    = &pool_sizes[0],
 		}
 
-		vk_ok(vk.CreateDescriptorPool(self.device.handle, &pool_info, nil, &self.draw.descriptor.pool))
+		vk_ok(vk.CreateDescriptorPool(self.device.handle, &pool_info, nil, &self.render_target.descriptor.pool))
 
 		descriptor_bindings: DescriptorBindings
 		sa.append(
 			&descriptor_bindings,
 			vk.DescriptorSetLayoutBinding{binding = 0, descriptorCount = 1, descriptorType = .STORAGE_IMAGE},
 		)
-		self.draw.descriptor.layout = descriptor_set_new_layout(self.device.handle, &descriptor_bindings, {.COMPUTE})
+		self.render_target.descriptor.layout = descriptor_set_new_layout(
+			self.device.handle,
+			&descriptor_bindings,
+			{.COMPUTE},
+		)
 
 		alloc_info := vk.DescriptorSetAllocateInfo {
 			sType              = .DESCRIPTOR_SET_ALLOCATE_INFO,
-			descriptorPool     = self.draw.descriptor.pool,
+			descriptorPool     = self.render_target.descriptor.pool,
 			descriptorSetCount = 1,
-			pSetLayouts        = &self.draw.descriptor.layout,
+			pSetLayouts        = &self.render_target.descriptor.layout,
 		}
 
-		vk_ok(vk.AllocateDescriptorSets(self.device.handle, &alloc_info, &self.draw.descriptor.set))
+		vk_ok(vk.AllocateDescriptorSets(self.device.handle, &alloc_info, &self.render_target.descriptor.set))
 
 		writer: DescriptorWriter
 		descriptor_writer_setup(&writer, self.device.handle)
@@ -79,21 +90,22 @@ descriptor_setup :: proc(self: ^Vulkan) {
 		descriptor_writer_write_image(
 			&writer,
 			binding = 0,
-			image = self.draw.image.view,
+			image = self.render_target.color_image.view,
 			sampler = 0,
 			layout = .GENERAL,
 			type = .STORAGE_IMAGE,
 		)
 
-		descriptor_writer_update_set(&writer, self.draw.descriptor.set)
+		descriptor_writer_update_set(&writer, self.render_target.descriptor.set)
 	}
 
 	resource_stack_push(
 		&self.device.cleanup_stack,
 		self.scene.descriptor_layout,
-		self.draw.descriptor.layout,
-		self.draw.descriptor.pool,
-		self.draw.image,
+		self.render_target.descriptor.layout,
+		self.render_target.descriptor.pool,
+		self.render_target.color_image,
+		self.render_target.depth_image,
 	)
 }
 
