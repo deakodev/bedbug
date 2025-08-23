@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "Build Futon Debug",
+            "name": "Run Futon Debug",
+            "program": "${workspaceFolder}/build/win32/debug/futon.exe",
+            "console": "externalTerminal",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+    ]
+}

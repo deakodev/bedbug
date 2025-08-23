@@ -10,8 +10,11 @@ mat4 :: linalg.Matrix4f32
 mat4_translate :: linalg.matrix4_translate
 mat4_perspective :: linalg.matrix4_perspective
 mat4_look_at :: linalg.matrix4_look_at
+mat_mul :: linalg.matrix_mul
 
 to_radians :: math.to_radians
+
+ceil :: math.ceil
 
 pack_unorm_4x8 :: proc "contextless" (v: vec4) -> u32 {
 

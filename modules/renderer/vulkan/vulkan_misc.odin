@@ -94,7 +94,7 @@ device_immediate_command :: proc(
 		pCommandBufferInfos    = &command_submit_info,
 	}
 
-	vk_ok(vk.QueueSubmit2(device.graphics_queue, 1, &submit_info, device.immediate.fence))
+	vk_ok(vk.QueueSubmit2(device.graphics_queue.handle, 1, &submit_info, device.immediate.fence))
 
 	vk_ok(vk.WaitForFences(device.handle, 1, &device.immediate.fence, true, 9999999999))
 }
@@ -117,9 +117,10 @@ device_memory_type_index :: proc(
 	log.panic("failed to determine memory type.")
 }
 
-vk_ok :: #force_inline proc(result: vk.Result, loc := #caller_location) {
+vk_ok :: #force_inline proc(result: vk.Result, loc := #caller_location) -> bool {
 
-	if intrinsics.expect(result, vk.Result.SUCCESS) == .SUCCESS {return}
+	if intrinsics.expect(result, vk.Result.SUCCESS) == .SUCCESS {return true}
 	log.errorf("failed vulkan proc: %v", result)
 	runtime.print_caller_location(loc)
+	return false
 }

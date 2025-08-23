@@ -35,7 +35,7 @@ Mesh :: struct {
 Meshes :: [dynamic]^Mesh
 
 // Override the vertex colors with the vertex normals which is useful for debugging.
-OVERRIDE_VERTEX_COLORS :: #config(OVERRIDE_VERTEX_COLORS, true)
+OVERRIDE_VERTEX_COLORS :: #config(OVERRIDE_VERTEX_COLORS, false)
 
 meshes_create_from_gtlf :: proc(
 	self: ^Vulkan,
@@ -46,7 +46,7 @@ meshes_create_from_gtlf :: proc(
 	ok: bool,
 ) {
 
-	log.debug("loading gtlf: ", file_path)
+	log.info("loading gtlf: ", file_path)
 
 	gtlf_options := cgltf.options {
 		type = .invalid,
@@ -271,16 +271,6 @@ meshes_create_from_gtlf :: proc(
 							colors_unpacked,
 							vertex_count,
 						)
-					}
-
-					for i := 0; i < vertex_count; i += 1 {
-						idx := i * 4
-						vertices_temp[initial_vertex + i].color = {
-							colors[idx],
-							colors[idx + 1],
-							colors[idx + 2],
-							colors[idx + 3],
-						}
 					}
 
 					for &vertex, index in vertices_temp {

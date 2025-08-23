@@ -37,27 +37,27 @@ editor_draw :: proc(bedbug: rawptr, self: rawptr) {
 	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
 
 	if im.begin("Background", nil, {.Always_Auto_Resize}) {
-		im.slider_float("Render scale", &backend.render_target.scale, 0.3, 1.0)
+		im.slider_float("Render scale", &backend.draw_target.scale, 0.3, 1.0)
 
-		effect_selected := &backend.background.effects[backend.background.selected]
-		if im.begin_combo("Effect", effect_selected.name) {
-			for effect, i in backend.background.effects {
-				is_selected := i == backend.background.selected
-				if im.selectable(effect.name, is_selected) {
-					backend.background.selected = i
-				}
+		background_state := &backend.draw_target.pipeline.push_constants
+		// if im.begin_combo("Effect", effect_selected.name) {
+		// 	for effect, i in backend.background.effects {
+		// 		is_selected := i == backend.background.selected
+		// 		if im.selectable(effect.name, is_selected) {
+		// 			backend.background.selected = i
+		// 		}
 
-				if is_selected {
-					im.set_item_default_focus()
-				}
-			}
-			im.end_combo()
-		}
+		// 		if is_selected {
+		// 			im.set_item_default_focus()
+		// 		}
+		// 	}
+		// 	im.end_combo()
+		// }
 
-		im.input_float4("push_constants _1", &effect_selected.push_constants._1)
-		im.input_float4("push_constants _2", &effect_selected.push_constants._2)
-		im.input_float4("push_constants _3", &effect_selected.push_constants._3)
-		im.input_float4("push_constants _4", &effect_selected.push_constants._4)
+		im.input_float4("push_constants _1", &background_state._1)
+		im.input_float4("push_constants _2", &background_state._2)
+		im.input_float4("push_constants _3", &background_state._3)
+		im.input_float4("push_constants _4", &background_state._4)
 	}
 
 	im.end()

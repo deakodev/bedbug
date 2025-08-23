@@ -15,16 +15,21 @@ Swapchain :: struct {
 	sample_count: vk.SampleCountFlags,
 }
 
-swapchain_setup :: proc(self: ^Vulkan) {
+swapchain_setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 
-	support, result := swapchain_support_query(self.device.physical, self.instance.surface, context.temp_allocator)
+	swapchain := &backend.swapchain
+	support, result := swapchain_support_query(
+		backend.device.physical,
+		backend.instance.surface,
+		context.temp_allocator,
+	)
 	if result != .SUCCESS {
 		log.panicf("failed to query swapchain support: %v", result)
 	}
 
-	self.swapchain.sample_count = {._1}
-	self.swapchain.format = swapchain_surface_format_select(support.formats)
-	self.swapchain.extent = swapchain_extent_select(support.capabilities)
+	swapchain.sample_count = {._1}
+	swapchain.format = swapchain_surface_format_select(support.formats)
+	swapchain.extent = swapchain_extent_select(support.capabilities)
 	present_mode := swapchain_present_mode_select(support.presentModes)
 
 	image_count := support.capabilities.minImageCount + 1
@@ -39,15 +44,15 @@ swapchain_setup :: proc(self: ^Vulkan) {
 		pre_transform = support.capabilities.currentTransform
 	}
 
-	old_swapchain := self.swapchain.handle
+	old_swapchain := swapchain.handle
 
 	create_info := vk.SwapchainCreateInfoKHR {
 		sType                 = .SWAPCHAIN_CREATE_INFO_KHR,
-		surface               = self.instance.surface,
+		surface               = backend.instance.surface,
 		minImageCount         = image_count,
-		imageFormat           = self.swapchain.format.format,
-		imageColorSpace       = self.swapchain.format.colorSpace,
-		imageExtent           = self.swapchain.extent,
+		imageFormat           = swapchain.format.format,
+		imageColorSpace       = swapchain.format.colorSpace,
+		imageExtent           = swapchain.extent,
 		imageArrayLayers      = 1,
 		imageUsage            = {.COLOR_ATTACHMENT, .TRANSFER_DST},
 		preTransform          = pre_transform,
@@ -60,31 +65,26 @@ swapchain_setup :: proc(self: ^Vulkan) {
 	}
 
 	new_swapchain: vk.SwapchainKHR
-	vk_ok(vk.CreateSwapchainKHR(self.device.handle, &create_info, nil, &new_swapchain))
+	vk_ok(vk.CreateSwapchainKHR(backend.device.handle, &create_info, nil, &new_swapchain)) or_return
 
 	if old_swapchain != 0 {
-		swapchain_cleanup(self)
+		swapchain_cleanup(backend)
 	}
 
-	self.swapchain.handle = new_swapchain
+	swapchain.handle = new_swapchain
 
-	self.swapchain.images = make([]vk.Image, int(image_count))
-	self.swapchain.views = make([]vk.ImageView, int(image_count))
+	swapchain.images = make([]vk.Image, int(image_count))
+	swapchain.views = make([]vk.ImageView, int(image_count))
 	vk_ok(
-		vk.GetSwapchainImagesKHR(
-			self.device.handle,
-			self.swapchain.handle,
-			&image_count,
-			raw_data(self.swapchain.images),
-		),
-	)
+		vk.GetSwapchainImagesKHR(backend.device.handle, swapchain.handle, &image_count, raw_data(swapchain.images)),
+	) or_return
 
-	for image, index in self.swapchain.images {
+	for image, index in swapchain.images {
 		view_info := vk.ImageViewCreateInfo {
 			sType = .IMAGE_VIEW_CREATE_INFO,
 			image = image,
 			viewType = .D2,
-			format = self.swapchain.format.format,
+			format = swapchain.format.format,
 			subresourceRange = {
 				aspectMask = {.COLOR},
 				baseMipLevel = 0,
@@ -93,24 +93,30 @@ swapchain_setup :: proc(self: ^Vulkan) {
 				layerCount = 1,
 			},
 		}
-		vk_ok(vk.CreateImageView(self.device.handle, &view_info, nil, &self.swapchain.views[index]))
+		vk_ok(vk.CreateImageView(backend.device.handle, &view_info, nil, &swapchain.views[index])) or_return
 
-		resource_stack_push(&self.device.cleanup_stack, self.swapchain.views[index])
+		resource_stack_push(&backend.device.cleanup_stack, swapchain.views[index])
+	}
+
+	return true
+}
+
+swapchain_cleanup :: proc(backend: ^Vulkan) {
+
+	swapchain := &backend.swapchain
+	delete(swapchain.views)
+	delete(swapchain.images)
+
+	if swapchain.handle != 0 {
+		vk.DestroySwapchainKHR(backend.device.handle, swapchain.handle, nil)
 	}
 }
 
-swapchain_cleanup :: proc(self: ^Vulkan) {
+swapchain_resize :: proc(backend: ^Vulkan) -> (ok: bool) {
 
-	delete(self.swapchain.views)
-	delete(self.swapchain.images)
-
-	vk.DestroySwapchainKHR(self.device.handle, self.swapchain.handle, nil)
-}
-
-swapchain_resize :: proc(self: ^Vulkan) {
-
-	vk_ok(vk.DeviceWaitIdle(self.device.handle))
-	swapchain_setup(self)
+	vk_ok(vk.DeviceWaitIdle(backend.device.handle)) or_return
+	swapchain_setup(backend) or_return
+	return true
 }
 
 Swapchain_Support :: struct {
@@ -149,7 +155,6 @@ swapchain_support_query :: proc(
 	return
 }
 
-
 swapchain_surface_format_select :: proc(formats: []vk.SurfaceFormatKHR) -> vk.SurfaceFormatKHR {
 
 	desired := vk.SurfaceFormatKHR {
@@ -179,9 +184,9 @@ swapchain_present_mode_select :: proc(modes: []vk.PresentModeKHR) -> vk.PresentM
 
 swapchain_extent_select :: proc(capabilities: vk.SurfaceCapabilitiesKHR) -> vk.Extent2D {
 
-	// if capabilities.currentExtent.width != max(u32) {
-	// 	return capabilities.currentExtent
-	// }
+	if capabilities.currentExtent.width != max(u32) {
+		return capabilities.currentExtent
+	}
 
 	width, height := glfw.GetFramebufferSize(bb.core().window.handle)
 	return {

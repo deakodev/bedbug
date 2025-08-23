@@ -6,22 +6,25 @@ import "core:log"
 import vk "vendor:vulkan"
 
 Device :: struct {
-	handle:               vk.Device,
-	physical:             vk.PhysicalDevice,
-	vma_allocator:        vma.Allocator,
-	cleanup_stack:        ResourceStack,
-	graphics_queue:       vk.Queue,
-	graphics_queue_index: u32,
-	immediate:            struct {
+	handle:         vk.Device,
+	physical:       vk.PhysicalDevice,
+	vma_allocator:  vma.Allocator,
+	cleanup_stack:  ResourceStack,
+	graphics_queue: struct {
+		handle: vk.Queue,
+		index:  u32,
+	},
+	immediate:      struct {
 		pool:    vk.CommandPool,
 		command: vk.CommandBuffer,
 		fence:   vk.Fence,
 	},
 }
 
-device_setup :: proc(self: ^Vulkan) {
+device_setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 
-	self.device.physical = physical_device_select(self.instance.handle)
+	device := &backend.device
+	device.physical = physical_device_select(backend.instance.handle)
 
 	features_11 := vk.PhysicalDeviceVulkan11Features {
 		sType                = .PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
@@ -30,8 +33,6 @@ device_setup :: proc(self: ^Vulkan) {
 
 	features_12 := vk.PhysicalDeviceVulkan12Features {
 		sType = .PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-		// bufferDeviceAddress = true,
-		// descriptorIndexing  = true,
 		pNext = &features_11,
 	}
 
@@ -42,76 +43,74 @@ device_setup :: proc(self: ^Vulkan) {
 		pNext            = &features_12,
 	}
 
-	graphics_index := queue_family_index(self.device.physical, self.instance.surface, .GRAPHICS)
+	device.graphics_queue.index = queue_family_index(device.physical, backend.instance.surface, .GRAPHICS)
 
-	queue_priority: f32 = 0.0
+	queue_priority: f32 = 1.0
 	graphics_queue_info := vk.DeviceQueueCreateInfo {
 		sType            = .DEVICE_QUEUE_CREATE_INFO,
 		queueCount       = 1,
 		pQueuePriorities = &queue_priority,
-		queueFamilyIndex = graphics_index,
+		queueFamilyIndex = device.graphics_queue.index,
 	}
 
 	device_info := vk.DeviceCreateInfo {
 		sType                   = .DEVICE_CREATE_INFO,
 		queueCreateInfoCount    = 1,
 		pQueueCreateInfos       = &graphics_queue_info,
-		enabledLayerCount       = u32(len(VALIDATION_LAYERS)) when VALIDATION_ENABLED else 0,
-		ppEnabledLayerNames     = raw_data(VALIDATION_LAYERS) when VALIDATION_ENABLED else nil,
 		enabledExtensionCount   = u32(len(DEVICE_EXTENSIONS)),
 		ppEnabledExtensionNames = raw_data(DEVICE_EXTENSIONS),
 		pEnabledFeatures        = nil,
 		pNext                   = &features_13,
 	}
 
-	vk_ok(vk.CreateDevice(self.device.physical, &device_info, nil, &self.device.handle))
+	vk_ok(vk.CreateDevice(device.physical, &device_info, nil, &device.handle)) or_return
 
-	resource_stack_setup(&self.device.cleanup_stack, self.device.handle)
+	resource_stack_setup(&device.cleanup_stack, device.handle)
 
-	vk.GetDeviceQueue(self.device.handle, graphics_index, 0, &self.device.graphics_queue)
+	vk.GetDeviceQueue(device.handle, device.graphics_queue.index, 0, &device.graphics_queue.handle)
 
 	vma_vulkan_functions := vma.create_vulkan_functions()
 	allocator_create_info: vma.Allocator_Create_Info = {
-		instance         = self.instance.handle,
-		physical_device  = self.device.physical,
-		device           = self.device.handle,
+		instance         = backend.instance.handle,
+		physical_device  = device.physical,
+		device           = device.handle,
 		vulkan_functions = &vma_vulkan_functions,
 	}
-	vk_ok(vma.create_allocator(allocator_create_info, &self.device.vma_allocator))
+	vk_ok(vma.create_allocator(allocator_create_info, &device.vma_allocator)) or_return
 
 	command_pool_info := vk.CommandPoolCreateInfo {
 		sType            = .COMMAND_POOL_CREATE_INFO,
-		queueFamilyIndex = self.device.graphics_queue_index,
+		queueFamilyIndex = device.graphics_queue.index,
 		flags            = {.RESET_COMMAND_BUFFER},
 	}
-	vk_ok(vk.CreateCommandPool(self.device.handle, &command_pool_info, nil, &self.device.immediate.pool))
+	vk_ok(vk.CreateCommandPool(device.handle, &command_pool_info, nil, &device.immediate.pool)) or_return
 
 	command_alloc_info := vk.CommandBufferAllocateInfo {
 		sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
-		commandPool        = self.device.immediate.pool,
+		commandPool        = device.immediate.pool,
 		commandBufferCount = 1,
 		level              = .PRIMARY,
 	}
-	vk_ok(vk.AllocateCommandBuffers(self.device.handle, &command_alloc_info, &self.device.immediate.command))
+	vk_ok(vk.AllocateCommandBuffers(device.handle, &command_alloc_info, &device.immediate.command)) or_return
 
 	fence_create_info := vk.FenceCreateInfo {
 		sType = .FENCE_CREATE_INFO,
 		flags = {.SIGNALED},
 	}
-	vk_ok(vk.CreateFence(self.device.handle, &fence_create_info, nil, &self.device.immediate.fence))
+	vk_ok(vk.CreateFence(device.handle, &fence_create_info, nil, &device.immediate.fence)) or_return
 
-	resource_stack_push(
-		&self.device.cleanup_stack,
-		self.device.vma_allocator,
-		self.device.immediate.pool,
-		self.device.immediate.fence,
-	)
+	resource_stack_push(&device.cleanup_stack, device.vma_allocator, device.immediate.pool, device.immediate.fence)
+
+	return true
 }
 
-device_cleanup :: proc(self: ^Vulkan) {
+device_cleanup :: proc(backend: ^Vulkan) {
 
-	resource_stack_cleanup(&self.device.cleanup_stack)
-	vk.DestroyDevice(self.device.handle, nil)
+	device := &backend.device
+	resource_stack_cleanup(&device.cleanup_stack)
+	if device.handle != nil {
+		vk.DestroyDevice(device.handle, nil)
+	}
 }
 
 @(require_results)
@@ -220,7 +219,6 @@ queue_family_index :: proc(
 	families := make([]vk.QueueFamilyProperties, count, context.temp_allocator)
 	vk.GetPhysicalDeviceQueueFamilyProperties(physical_device, &count, raw_data(families))
 
-	// attempt to find dedicated compute queue
 	if flag == .COMPUTE {
 		for family, index in families {
 			if flag in family.queueFlags && .GRAPHICS not_in family.queueFlags && .TRANSFER not_in family.queueFlags {
@@ -229,7 +227,6 @@ queue_family_index :: proc(
 		}
 	}
 
-	// attempt to find dedicated compute queue
 	if flag == .TRANSFER {
 		for family, index in families {
 			if flag in family.queueFlags && .GRAPHICS not_in family.queueFlags && .COMPUTE not_in family.queueFlags {
@@ -249,7 +246,7 @@ queue_family_index :: proc(
 		}
 	}
 
-	// other non-dedicated queues
+	// other non-dedicated queues for fallback
 	for family, index in families {
 		if flag in family.queueFlags {
 			return u32(index)

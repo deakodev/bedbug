@@ -7,19 +7,20 @@ import im_glfw "bedbug:vendor/imgui/imgui_impl_glfw"
 import im_vk "bedbug:vendor/imgui/imgui_impl_vulkan"
 import "core:log"
 
-BbRenderer :: struct {
+Renderer :: struct {
 	backend: backend.Vulkan,
 	camera:  Camera,
 }
 
-setup :: proc(self: ^BbRenderer) {
+setup :: proc(renderer: ^Renderer) {
 
 	log.info("Setting up renderer...")
-	log.assert(self != nil, "renderer pointer is nil.")
+	log.assert(renderer != nil, "renderer pointer is nil.")
 
-	backend.setup(&self.backend)
+	backend.setup(&renderer.backend)
+	log.ensure(renderer.backend.initialized, "failed to initialize renderer backend.")
 
-	self.camera = Camera {
+	renderer.camera = Camera {
 		position        = bb.vec3{0.0, 0.0, -2.5},
 		target          = bb.vec3{0.0, 0.0, 0.0},
 		up              = bb.vec3{0.0, 1.0, 0.0},
@@ -30,16 +31,16 @@ setup :: proc(self: ^BbRenderer) {
 	}
 }
 
-cleanup :: proc(self: ^BbRenderer) {
+cleanup :: proc(renderer: ^Renderer) {
 
 	log.info("cleaning up renderer...")
-	log.assert(self != nil, "renderer pointer is nil.")
-	backend.cleanup(&self.backend)
+	log.assert(renderer != nil, "renderer pointer is nil.")
+	backend.cleanup(&renderer.backend)
 }
 
-frame_prepare :: proc(self: ^BbRenderer) {
+frame_prepare :: proc(renderer: ^Renderer) {
 
-	backend.frame_prepare(&self.backend)
+	backend.update(&renderer.backend)
 }
 
 frame_begin :: proc() {
@@ -49,8 +50,8 @@ frame_begin :: proc() {
 	im.new_frame()
 }
 
-frame_end :: proc(self: ^BbRenderer) {
+frame_end :: proc(renderer: ^Renderer) {
 
 	im.render()
-	backend.frame_draw(&self.backend)
+	backend.draw(&renderer.backend)
 }

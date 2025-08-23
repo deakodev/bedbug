@@ -16,9 +16,10 @@ Frame :: struct {
 	image_index:          u32,
 }
 
-frame_setup :: proc(self: ^Vulkan) {
+MAX_CONCURRENT_FRAMES :: #config(MAX_CONCURRENT_FRAMES, u32(2))
+Frames :: [MAX_CONCURRENT_FRAMES]Frame
 
-	self.frames = make([]Frame, MAX_CONCURRENT_FRAMES, context.allocator)
+frame_setup :: proc(self: ^Vulkan) -> (ok: bool) {
 
 	fence_info := vk.FenceCreateInfo {
 		sType = .FENCE_CREATE_INFO,
@@ -32,16 +33,16 @@ frame_setup :: proc(self: ^Vulkan) {
 	command_pool_info := vk.CommandPoolCreateInfo {
 		sType            = .COMMAND_POOL_CREATE_INFO,
 		flags            = {.RESET_COMMAND_BUFFER},
-		queueFamilyIndex = self.device.graphics_queue_index,
+		queueFamilyIndex = self.device.graphics_queue.index,
 	}
 
 	for &frame in self.frames {
 
 		// permanent resources
-		vk_ok(vk.CreateFence(self.device.handle, &fence_info, nil, &frame.fence))
-		vk_ok(vk.CreateSemaphore(self.device.handle, &semaphore_info, nil, &frame.submit_semaphore))
-		vk_ok(vk.CreateSemaphore(self.device.handle, &semaphore_info, nil, &frame.present_semaphore))
-		vk_ok(vk.CreateCommandPool(self.device.handle, &command_pool_info, nil, &frame.command_pool))
+		vk_ok(vk.CreateFence(self.device.handle, &fence_info, nil, &frame.fence)) or_return
+		vk_ok(vk.CreateSemaphore(self.device.handle, &semaphore_info, nil, &frame.submit_semaphore)) or_return
+		vk_ok(vk.CreateSemaphore(self.device.handle, &semaphore_info, nil, &frame.present_semaphore)) or_return
+		vk_ok(vk.CreateCommandPool(self.device.handle, &command_pool_info, nil, &frame.command_pool)) or_return
 
 		command_alloc_info := vk.CommandBufferAllocateInfo {
 			sType              = .COMMAND_BUFFER_ALLOCATE_INFO,
@@ -50,7 +51,7 @@ frame_setup :: proc(self: ^Vulkan) {
 			commandBufferCount = 1,
 		}
 
-		vk_ok(vk.AllocateCommandBuffers(self.device.handle, &command_alloc_info, &frame.command_buffer))
+		vk_ok(vk.AllocateCommandBuffers(self.device.handle, &command_alloc_info, &frame.command_buffer)) or_return
 
 		{ 	// descriptors
 			frame_sizes: DescriptorPoolSizeRatios
@@ -79,6 +80,8 @@ frame_setup :: proc(self: ^Vulkan) {
 			self.device.handle,
 		)
 	}
+
+	return true
 }
 
 frame_cleanup :: proc(self: ^Vulkan) {
@@ -86,6 +89,4 @@ frame_cleanup :: proc(self: ^Vulkan) {
 	for &frame in self.frames {
 		resource_stack_cleanup(&frame.ephemeral_stack)
 	}
-
-	delete(self.frames)
 }

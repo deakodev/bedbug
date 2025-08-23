@@ -9,24 +9,35 @@ import "core:log"
 import "core:reflect"
 import "core:strings"
 
-TITLE :: "Bedbug" // todo: pass in
-WIDTH :: 1200
-HEIGHT :: 800
-
 Dynlib :: core.Dynlib
 Layer :: core.Layer
 Plugin :: core.Plugin
 
-Bedbug :: struct {
-	core:     ^core.Core,
-	renderer: ^renderer.BbRenderer,
+Options :: struct {
+	window_title:  Maybe(cstring),
+	window_width:  Maybe(u32),
+	window_height: Maybe(u32),
+	target_fps:    Maybe(u32),
+	fullscreen:    bool,
 }
 
-setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
+g_default_options := Options {
+	window_title  = "Bedbug",
+	window_width  = 1200,
+	window_height = 800,
+	target_fps    = 60,
+}
+
+Bedbug :: struct {
+	core:     ^core.Core,
+	renderer: ^renderer.Renderer,
+}
+
+setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) {
 
 	log.info("setting up bedbug...")
-	log.assert(bedbug != nil, "bedbug pointer is nil.")
-	log.assert(plugin != nil, "bedbug plugin is nil.")
+	log.ensure(bedbug != nil, "bedbug pointer is nil.")
+	log.ensure(plugin != nil, "bedbug plugin is nil.")
 
 	bedbug.core = new(core.Core)
 	core.set_callback(proc() -> ^core.Core {
@@ -35,25 +46,32 @@ setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 		log.assert(bedbug.core != nil, "bedbug core pointer is nil.")
 		return bedbug.core
 	})
-	bedbug.core.window = core.window_setup(TITLE, WIDTH, HEIGHT)
 
-	core.timer_setup(&bedbug.core.timer, 60) // todo: remove frame rate hardcode
+	options := options if options != nil else &g_default_options
+	title := options.window_title.? or_else g_default_options.window_title.?
+	width := options.window_width.? or_else g_default_options.window_width.?
+	height := options.window_height.? or_else g_default_options.window_height.?
+	fps := options.target_fps.? or_else g_default_options.target_fps.?
+	fullscreen := options.fullscreen
 
-	bedbug.renderer = new(renderer.BbRenderer)
+	bedbug.core.window = core.window_setup(title, width, height, fps, fullscreen)
+
+	core.timer_setup(&bedbug.core.timer, fps)
+
+	bedbug.renderer = new(renderer.Renderer)
 	renderer.setup(bedbug.renderer)
 
-	if plugin != nil {
-		log.ensure(reflect.enum_value_has_name(T.GAME), "bedbug plugin enum T must have field '.GAME' (layer).")
-		lib_names := reflect.enum_field_names(T)
+	log.ensure(reflect.enum_value_has_name(T.GAME), "bedbug plugin enum T must have field '.GAME' (layer).")
+	lib_names := reflect.enum_field_names(T)
 
-		for &lib, index in plugin.libs {
-			lib.name = strings.to_lower(lib_names[index])
-			lib.versions = make([dynamic]core.DynlibSymbols)
+	for &lib, index in plugin.libs {
+		lib.name = strings.to_lower(lib_names[index])
+		lib.versions = make([dynamic]core.DynlibSymbols)
 
-			layer := &plugin.layers[index]
-			layer.symbols = core.dynlib_load(&lib)
-			layer.self, layer.type = layer.setup(bedbug)
-		}}
+		layer := &plugin.layers[index]
+		layer.symbols = core.dynlib_load(&lib)
+		layer.self, layer.type = layer.setup(bedbug)
+	}
 }
 
 cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
@@ -113,7 +131,7 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 
 		if bedbug.core.window.iconified {
 			core.window_wait_events()
-			core.timer_setup(&bedbug.core.timer, 60) // todo: remove frame rate hardcode, add event callback to limit triggering?
+			core.timer_setup(&bedbug.core.timer, bedbug.core.window.fps) // todo: event callback to limit triggering?
 			continue loop
 		}
 

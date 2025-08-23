@@ -3,7 +3,7 @@ package entry
 import "bedbug:bedbug"
 import "core:log"
 
-Layers :: enum {
+Layers :: enum u8 {
 	GAME,
 	EDITOR,
 }
@@ -22,8 +22,10 @@ main :: proc() {
 	libs: [Layers]bedbug.Dynlib
 	layers: [Layers]bedbug.Layer
 	plugin := bedbug.Plugin(Layers){libs, layers}
-
-	bedbug.setup(bedbug_ptr, &plugin)
+	options := bedbug.Options {
+		// fullscreen = true,
+	}
+	bedbug.setup(bedbug_ptr, &plugin, &options)
 
 	bedbug.run(bedbug_ptr, &plugin)
 

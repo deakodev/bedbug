@@ -2,7 +2,6 @@ package vulkan_backend
 
 import "base:runtime"
 import bb "bedbug:core"
-import "bedbug:vendor/vma"
 import "core:log"
 import "core:slice"
 import "core:strings"
@@ -10,7 +9,7 @@ import "vendor:glfw"
 import vk "vendor:vulkan"
 
 VALIDATION_ENABLED :: #config(VALIDATION_ENABLED, ODIN_DEBUG)
-VALIDATION_LAYERS :: []cstring{"VK_LAYER_KHRONOS_validation", "VK_LAYER_LUNARG_monitor"} //"VK_LAYER_LUNARG_api_dump"
+VALIDATION_LAYERS :: []cstring{"VK_LAYER_KHRONOS_validation", "VK_LAYER_LUNARG_monitor"} // "VK_LAYER_LUNARG_api_dump"
 
 Instance :: struct {
 	handle:    vk.Instance,
@@ -18,7 +17,7 @@ Instance :: struct {
 	surface:   vk.SurfaceKHR,
 }
 
-instance_setup :: proc(self: ^Vulkan) {
+instance_setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 
 	instance_layers := VALIDATION_LAYERS when VALIDATION_ENABLED else []cstring{}
 	instance_extensions := slice.clone_to_dynamic(INSTANCE_EXTENSIONS, context.temp_allocator)
@@ -53,33 +52,52 @@ instance_setup :: proc(self: ^Vulkan) {
 		ppEnabledExtensionNames = raw_data(instance_extensions),
 	}
 
-	messenger_info.pNext = create_info.pNext
-	create_info.pNext = &messenger_info
+	when VALIDATION_ENABLED {
+		messenger_info.pNext = create_info.pNext
+		create_info.pNext = &messenger_info
+	}
 
 	vk.load_proc_addresses_global(rawptr(glfw.GetInstanceProcAddress))
-	vk_ok(vk.CreateInstance(&create_info, nil, &self.instance.handle))
-	vk.load_proc_addresses_instance(self.instance.handle)
+	vk_ok(vk.CreateInstance(&create_info, nil, &backend.instance.handle)) or_return
+	vk.load_proc_addresses_instance(backend.instance.handle)
 
 	when VALIDATION_ENABLED {
-		vk_ok(vk.CreateDebugUtilsMessengerEXT(self.instance.handle, &messenger_info, nil, &self.instance.messenger))
+		vk_ok(
+			vk.CreateDebugUtilsMessengerEXT(
+				backend.instance.handle,
+				&messenger_info,
+				nil,
+				&backend.instance.messenger,
+			),
+		) or_return
 	}
 
-	vk_ok(glfw.CreateWindowSurface(self.instance.handle, bb.core().window.handle, nil, &self.instance.surface))
+	vk_ok(
+		glfw.CreateWindowSurface(backend.instance.handle, bb.core().window.handle, nil, &backend.instance.surface),
+	) or_return
+
+	return true
 }
 
-instance_cleanup :: proc(self: ^Vulkan) {
+instance_cleanup :: proc(backend: ^Vulkan) {
 
-	vk.DestroySurfaceKHR(self.instance.handle, self.instance.surface, nil)
-	when VALIDATION_ENABLED {
-		vk.DestroyDebugUtilsMessengerEXT(self.instance.handle, self.instance.messenger, nil)
+	if backend.instance.surface != 0 {
+		vk.DestroySurfaceKHR(backend.instance.handle, backend.instance.surface, nil)
 	}
-	vk.DestroyInstance(self.instance.handle, nil)
+
+	when VALIDATION_ENABLED {
+		vk.DestroyDebugUtilsMessengerEXT(backend.instance.handle, backend.instance.messenger, nil)
+	}
+
+	if backend.instance.handle != nil {
+		vk.DestroyInstance(backend.instance.handle, nil)
+	}
 }
 
 debug_message :: proc "system" (
 	message_severity: vk.DebugUtilsMessageSeverityFlagsEXT,
 	message_type: vk.DebugUtilsMessageTypeFlagsEXT,
-	p_callback_data: ^vk.DebugUtilsMessengerCallbackDataEXT,
+	callback_data: ^vk.DebugUtilsMessengerCallbackDataEXT,
 	_: rawptr,
 ) -> b32 {
 
@@ -95,7 +113,7 @@ debug_message :: proc "system" (
 		level = .Info
 	}
 
-	message := strings.trim_space(string(p_callback_data.pMessage))
+	message := strings.trim_space(string(callback_data.pMessage))
 	log.logf(level, "[%v]:\n%s", message_type, message)
 
 	if level == .Error {

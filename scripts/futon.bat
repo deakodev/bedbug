@@ -16,6 +16,7 @@ if %EXE_RUNNING% == false (
 echo [Compiling shaders...]
 call "scripts\slangc.bat"
 
+echo.
 echo [Building debug game.dll...]
 call %BUILD% debug game.dll
 if %ERRORLEVEL% neq 0 (
@@ -28,6 +29,7 @@ if %EXE_RUNNING% == true (
     exit /b 0
 )
 
+echo.
 echo [Building debug editor.dll...]
 call %BUILD% debug editor.dll
 if %ERRORLEVEL% neq 0 (
@@ -35,6 +37,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
+echo.
 echo [Building debug futon.exe...]
 call %BUILD% debug futon.exe
 if %ERRORLEVEL% neq 0 (
@@ -42,8 +45,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b %ERRORLEVEL%
 )
 
-echo [Running debug futon.exe...]
-start cmd /c "%BUILD_DIR%\%EXE% & echo. & echo [Press any key to close...] & pause > nul"
+echo.
 
 endLocal
 exit /b %ERRORLEVEL%

@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "command": "",
+    "args": [],
+    "tasks": [
+        {
+            "label": "Build Futon Debug",
+            "type": "shell",
+            "windows": {
+                "command": "${workspaceFolder}/scripts/futon.bat",
+            },
+            "group": "build"
+        },
+    ]
+}

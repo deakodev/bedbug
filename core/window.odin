@@ -9,12 +9,12 @@ g_foreign_context: runtime.Context
 
 Window :: struct {
 	handle:    glfw.WindowHandle,
+	fps:       u32,
 	iconified: bool,
 	resized:   bool,
 }
 
-window_setup :: proc(title: cstring, width: i32, height: i32) -> (window: Window) {
-
+window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscreen: bool) -> (window: Window) {
 	log.info("setting up window...")
 
 	glfw.SetErrorCallback(proc "c" (code: i32, description: cstring) {
@@ -30,9 +30,34 @@ window_setup :: proc(title: cstring, width: i32, height: i32) -> (window: Window
 	glfw.WindowHint(glfw.RESIZABLE, glfw.TRUE)
 	glfw.WindowHint(glfw.SCALE_TO_MONITOR, glfw.TRUE)
 
+	width := i32(width)
+	height := i32(height)
+	window.fps = fps
+
+	monitor: glfw.MonitorHandle
+	mode: ^glfw.VidMode
+
+	if fullscreen {
+		monitor = glfw.GetPrimaryMonitor()
+		mode = glfw.GetVideoMode(monitor)
+
+		width = mode.width
+		height = mode.height
+		window.fps = u32(mode.refresh_rate)
+
+		glfw.WindowHint(glfw.RED_BITS, mode.red_bits)
+		glfw.WindowHint(glfw.GREEN_BITS, mode.green_bits)
+		glfw.WindowHint(glfw.BLUE_BITS, mode.blue_bits)
+		glfw.WindowHint(glfw.REFRESH_RATE, mode.refresh_rate)
+	}
+
 	window.handle = glfw.CreateWindow(width, height, title, nil, nil)
 	if window.handle == nil {
 		log.panic("failed to create glfw window.")
+	}
+
+	if fullscreen {
+		glfw.SetWindowMonitor(window.handle, monitor, 0, 0, mode.width, mode.height, mode.refresh_rate)
 	}
 
 	glfw.SetWindowUserPointer(window.handle, core())
@@ -42,9 +67,28 @@ window_setup :: proc(title: cstring, width: i32, height: i32) -> (window: Window
 		core.window.resized = true
 	})
 
-	glfw.SetWindowIconifyCallback(window.handle, proc "c" (handle: glfw.WindowHandle, iconified: i32) {
+	glfw.SetWindowIconifyCallback(window.handle, proc "c" (handle: glfw.WindowHandle, _: i32) {
 		core := cast(^Core)glfw.GetWindowUserPointer(handle)
-		core.window.iconified = bool(iconified)
+		core.window.iconified = true
+	})
+
+	glfw.SetWindowMaximizeCallback(window.handle, proc "c" (handle: glfw.WindowHandle, maximize: i32) {
+		core := cast(^Core)glfw.GetWindowUserPointer(handle)
+		core.window.iconified = false
+
+		if bool(maximize) {
+			monitor := glfw.GetPrimaryMonitor()
+			mode := glfw.GetVideoMode(monitor)
+
+			core.window.fps = u32(mode.refresh_rate)
+
+			glfw.WindowHint(glfw.RED_BITS, mode.red_bits)
+			glfw.WindowHint(glfw.GREEN_BITS, mode.green_bits)
+			glfw.WindowHint(glfw.BLUE_BITS, mode.blue_bits)
+			glfw.WindowHint(glfw.REFRESH_RATE, mode.refresh_rate)
+
+			glfw.SetWindowMonitor(core.window.handle, monitor, 0, 0, mode.width, mode.height, mode.refresh_rate)
+		}
 	})
 
 	return window
@@ -56,13 +100,6 @@ window_cleanup :: proc() {
 		glfw.DestroyWindow(core().window.handle)
 		glfw.Terminate()
 	}
-}
-
-window_resolution :: proc() -> (u32, u32) {
-
-	mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor())
-	log.ensure(mode != nil)
-	return u32(mode.width), u32(mode.height)
 }
 
 window_poll_events :: proc() {
@@ -78,4 +115,11 @@ window_should_close :: proc() -> bool {
 window_wait_events :: proc() {
 
 	glfw.WaitEvents()
+}
+
+monitor_resolution :: proc() -> (u32, u32) {
+
+	mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor())
+	log.ensure(mode != nil)
+	return u32(mode.width), u32(mode.height)
 }
