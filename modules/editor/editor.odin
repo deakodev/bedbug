@@ -1,6 +1,6 @@
 package editor
 
-import bb "bedbug:bedbug"
+import bb "bedbug:runtime"
 import im "bedbug:vendor/imgui"
 import "core:log"
 

@@ -1,46 +1,61 @@
 @echo off
+setlocal enableDelayedExpansion
 
+:: Default values
+set "BUILD_TYPE=debug"
+set "WITH_EDITOR=false"
+set "PROJECT=game"
+
+:: Parse args
 for %%A in (%*) do (
-
-    if /I "%%A"=="debug" (
-        set "BUILD_TYPE=debug"
-        set "BUILD_FLAGS=-debug"
-    )
-
-    if /I "%%A"=="release" (
-        set "BUILD_TYPE=release"
-        set "BUILD_FLAGS=-o:speed"
-    )
-  
-    if /I "%%A"=="game.dll" (
-        set "BUILD_SOURCE=game"
-        set "BUILD_TARGET=game"
-        set "BUILD_MODE=dll"
-        set "BUILD_DEFINES="
-    )
-
-    if /I "%%A"=="editor.dll" (
-        set "BUILD_SOURCE=editor"
-        set "BUILD_TARGET=editor"
-        set "BUILD_MODE=dll"
-        set "BUILD_DEFINES=-extra-linker-flags:"/IGNORE:4075""
-    )
-
-    if /I "%%A"=="futon.exe" (
-        set "BUILD_SOURCE=entry\futon"
-        set "BUILD_TARGET=futon"
-        set "BUILD_MODE=exe"
-        set "BUILD_DEFINES=-extra-linker-flags:"/IGNORE:4075""
-    )
+    if /I "%%A"=="debug" set "BUILD_TYPE=debug"
+    if /I "%%A"=="release" set "BUILD_TYPE=release"
+    if /I "%%A"=="game" set "PROJECT=game"
+    if /I "%%A"=="viewer" set "PROJECT=viewer"
+    if /I "%%A"=="editor" set "WITH_EDITOR=true"
 )
 
-set "BUILD_COLLECTIONS=-collection:bedbug=."
+:: Config values
+set "EXE=%PROJECT%.exe"
+set "EXE_RUNNING=false"
+set "MODE_FLAGS=-debug"
+if /I "%BUILD_TYPE%"=="release" set "MODE_FLAGS=-o:speed"
 
-set "BUILD_DIR=build\win32\%BUILD_TYPE%"
-if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+set "BUILD_DIR=%CD%\build\win32\%BUILD_TYPE%"
+set "OUT_EXE=%BUILD_DIR%\%EXE%"
 
-set "BUILD_OUT=%BUILD_DIR%\%BUILD_TARGET%.%BUILD_MODE%"
+:: Check if EXE is running
+for /F %%x in ('tasklist /NH /FI "IMAGENAME eq %EXE%"') do if %%x == %EXE% set EXE_RUNNING=true
 
-odin build %BUILD_SOURCE% %BUILD_FLAGS% %BUILD_DEFINES% %BUILD_COLLECTIONS% -build-mode:%BUILD_MODE% -out:%BUILD_OUT%
+:: Clean if not running
+if !EXE_RUNNING! == false (
+    del /q /s %BUILD_DIR% >nul 2>nul
+)
 
+:: Shader step
+echo [Compiling shaders...]
+call scripts\slangc.bat
+
+:: Project DLL
+echo.
+echo [Building %BUILD_TYPE% %PROJECT%.dll...]
+call scripts\build_target.bat %BUILD_TYPE% %PROJECT%.dll
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+:: Editor DLL
+if /I "%WITH_EDITOR%"=="true" (
+    echo.
+    echo [Building %BUILD_TYPE% editor.dll...]
+    call scripts\build_target.bat %BUILD_TYPE% editor.dll
+    if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+)
+
+:: Main EXE
+echo.
+echo [Building %BUILD_TYPE% %EXE%...]
+call scripts\build_target.bat %BUILD_TYPE% %EXE%
+if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
+
+echo.
+endlocal
 exit /b %ERRORLEVEL%

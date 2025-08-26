@@ -4,9 +4,9 @@
         {
             "type": "cppvsdbg",
             "request": "launch",
-            "preLaunchTask": "Build Futon Debug",
-            "name": "Run Futon Debug",
-            "program": "${workspaceFolder}/build/win32/debug/futon.exe",
+            "preLaunchTask": "Build Project",
+            "name": "Run Project",
+            "program": "${workspaceFolder}/build/win32/debug/viewer.exe",
             "console": "externalTerminal",
             "args": [],
             "cwd": "${workspaceFolder}"

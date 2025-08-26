@@ -1,10 +1,11 @@
 package game
 
-import bb "bedbug:core"
+import br "bedbug:bedbug"
+import bc "bedbug:core"
 import "core:log"
 
 Game :: struct {
-	some_number: int,
+	scene: br.Scene,
 }
 
 @(export)
@@ -13,6 +14,8 @@ game_setup :: proc(bedbug: rawptr) -> (self: rawptr, type: typeid) {
 	log.info("setting up game...")
 
 	self = new(Game)
+	game := (^Game)(self)
+	entity := br.entity_create(&game.scene)
 
 	return self, type_of(self)
 }
@@ -26,8 +29,7 @@ game_cleanup :: proc(bedbug: rawptr, self: rawptr) {
 @(export)
 game_update :: proc(bedbug: rawptr, self: rawptr) {
 	game := (^Game)(self)
-	game.some_number += 1
-	log.info("some_number:", game.some_number)
+
 }
 
 @(export)

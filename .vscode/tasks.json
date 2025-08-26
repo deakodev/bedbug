@@ -1,15 +1,16 @@
 {
-    "version": "2.0.0",
-    "command": "",
-    "args": [],
-    "tasks": [
-        {
-            "label": "Build Futon Debug",
-            "type": "shell",
-            "windows": {
-                "command": "${workspaceFolder}/scripts/futon.bat",
-            },
-            "group": "build"
-        },
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Project",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/build.bat",
+      "args": ["debug", "viewer", "editor"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+  ]
 }

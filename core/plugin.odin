@@ -1,12 +1,12 @@
 package core
 
-Layer :: struct {
+Module :: struct {
 	using symbols: ^DynlibSymbols,
 	type:          typeid,
 	self:          rawptr,
 }
 
 Plugin :: struct($T: typeid) {
-	libs:   [T]Dynlib,
-	layers: [T]Layer,
+	libs:    [T]Dynlib,
+	modules: [T]Module,
 }

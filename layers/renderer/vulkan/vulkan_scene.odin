@@ -49,7 +49,7 @@ scene_setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 		backend.scene.descriptor_layout,
 	)
 
-	backend.scene.test_meshes, _ = meshes_create_from_gtlf(backend, "modules/renderer/assets/basicmesh.glb")
+	backend.scene.test_meshes, _ = meshes_create_from_gtlf(backend, "layers/renderer/assets/basicmesh.glb")
 
 	white := bb.pack_unorm_4x8({1, 1, 1, 1})
 	backend.textures.white_image = allocated_image_create_from_data(

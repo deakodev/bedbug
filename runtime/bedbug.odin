@@ -1,7 +1,8 @@
-package bedbug
+package bedbug_runtime
 
 import "bedbug:core"
-import "bedbug:modules/renderer"
+import "bedbug:layers/renderer"
+import "bedbug:layers/scene"
 
 import "base:runtime"
 import "core:fmt"
@@ -10,7 +11,7 @@ import "core:reflect"
 import "core:strings"
 
 Dynlib :: core.Dynlib
-Layer :: core.Layer
+Module :: core.Module
 Plugin :: core.Plugin
 
 Options :: struct {
@@ -31,6 +32,7 @@ g_default_options := Options {
 Bedbug :: struct {
 	core:     ^core.Core,
 	renderer: ^renderer.Renderer,
+	scene:    ^scene.Scene,
 }
 
 setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) {
@@ -61,16 +63,17 @@ setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) {
 	bedbug.renderer = new(renderer.Renderer)
 	renderer.setup(bedbug.renderer)
 
-	log.ensure(reflect.enum_value_has_name(T.GAME), "bedbug plugin enum T must have field '.GAME' (layer).")
-	lib_names := reflect.enum_field_names(T)
+	bedbug.scene = new(scene.Scene)
+	scene.setup(bedbug.scene)
 
+	lib_names := reflect.enum_field_names(T)
 	for &lib, index in plugin.libs {
 		lib.name = strings.to_lower(lib_names[index])
 		lib.versions = make([dynamic]core.DynlibSymbols)
 
-		layer := &plugin.layers[index]
-		layer.symbols = core.dynlib_load(&lib)
-		layer.self, layer.type = layer.setup(bedbug)
+		module := &plugin.modules[index]
+		module.symbols = core.dynlib_load(&lib)
+		module.self, module.type = module.setup(bedbug)
 	}
 }
 
@@ -81,8 +84,8 @@ cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 	log.assert(plugin != nil, "bedbug plugin is nil.")
 
 	for &lib, index in plugin.libs {
-		layer := plugin.layers[index]
-		layer.cleanup(bedbug, layer.self)
+		module := plugin.modules[index]
+		module.cleanup(bedbug, module.self)
 		core.dynlib_unload(&lib)
 	}
 
@@ -125,8 +128,8 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 
 		update(bedbug)
 
-		for &layer in plugin.layers {
-			layer.update(bedbug, layer.self)
+		for &module in plugin.modules {
+			module.update(bedbug, module.self)
 		}
 
 		if bedbug.core.window.iconified {
@@ -137,22 +140,22 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 
 		renderer.frame_begin()
 
-		for &layer in plugin.layers {
-			layer.draw(bedbug, layer.self)
+		for &module in plugin.modules {
+			module.draw(bedbug, module.self)
 		}
 
 		renderer.frame_end(bedbug.renderer)
 
-		if core.dynlib_should_reload(&plugin.libs[T.GAME]) {
-			game_layer := plugin.layers[T.GAME]
-			game_layer.symbols = core.dynlib_load(&plugin.libs[T.GAME])
+		if core.dynlib_should_reload(&plugin.libs[PROJECT]) {
+			game_module := plugin.modules[PROJECT]
+			game_module.symbols = core.dynlib_load(&plugin.libs[PROJECT])
 		}
 
 		game_should_reset := core.input_key_pressed(.KEY_F5)
 		if game_should_reset {
-			game_layer := &plugin.layers[T.GAME]
-			game_layer.cleanup(bedbug, game_layer.self)
-			game_layer.self, game_layer.type = game_layer.setup(bedbug)
+			game_module := &plugin.modules[PROJECT]
+			game_module.cleanup(bedbug, game_module.self)
+			game_module.self, game_module.type = game_module.setup(bedbug)
 		}
 
 		poll_events(bedbug)
@@ -167,3 +170,6 @@ allocator_setup :: core.allocator_setup
 allocator_clear :: core.allocator_clear
 allocator_check :: core.allocator_check
 allocator_cleanup :: core.allocator_cleanup
+
+Scene :: scene.Scene
+entity_create :: scene.entity_create
