@@ -6,6 +6,7 @@ import renderer "bedbug:layers/renderer"
 import "base:runtime"
 import "core:fmt"
 import "core:log"
+import "core:mem"
 import "core:reflect"
 import "core:strings"
 
@@ -22,8 +23,9 @@ BedbugStage :: enum u8 {
 }
 
 Bedbug :: struct {
-	core:     core.Core,
-	renderer: renderer.Renderer,
+	core:               core.Core,
+	renderer:           renderer.Renderer,
+	tracking_allocator: mem.Tracking_Allocator,
 }
 
 setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) -> (ok: bool) {
@@ -79,8 +81,6 @@ cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 	renderer.cleanup(&bedbug.renderer) or_return
 
 	core.cleanup() or_return
-
-	free(bedbug)
 
 	g_bedbug_stage = .UNINITIALIZED
 	return true
@@ -150,7 +150,10 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 		poll_events(bedbug)
 
 		free_all(context.temp_allocator)
-		core.allocator_tracking_check()
+
+		when ODIN_DEBUG {
+			core.allocator_tracking_check(&bedbug.tracking_allocator)
+		}
 	}
 
 	return true

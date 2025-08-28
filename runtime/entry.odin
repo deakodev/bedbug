@@ -5,15 +5,15 @@ import "core:log"
 
 main :: proc() {
 
+	bedbug := new(Bedbug)
+	context.user_ptr = bedbug
+
 	context.logger = logger_setup()
 
 	when ODIN_DEBUG {
-		context.allocator = allocator_tracking_setup()
-		defer allocator_tracking_cleanup()
+		context.allocator = allocator_tracking_setup(&bedbug.tracking_allocator)
+		defer allocator_tracking_cleanup(&bedbug.tracking_allocator)
 	}
-
-	bedbug := new(Bedbug)
-	context.user_ptr = bedbug
 
 	libs: [config.Modules]Dynlib
 	modules: [config.Modules]Module

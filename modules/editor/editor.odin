@@ -3,6 +3,7 @@ package editor
 import bb "bedbug:runtime"
 import im "bedbug:vendor/imgui"
 import "core:log"
+import "core:mem"
 
 Editor :: struct {}
 
@@ -36,7 +37,8 @@ editor_update :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 @(export)
 editor_draw :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 
-	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
+	bedbug := (^bb.Bedbug)(bedbug)
+	backend := &bedbug.renderer.backend
 
 	if im.begin("Background", nil, {.Always_Auto_Resize}) {
 		im.slider_float("Render scale", &backend.draw_target.scale, 0.3, 1.0)
@@ -60,6 +62,24 @@ editor_draw :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 		im.input_float4("push_constants _2", &background_state._2)
 		im.input_float4("push_constants _3", &background_state._3)
 		im.input_float4("push_constants _4", &background_state._4)
+	}
+
+	im.end()
+
+	if im.begin("Memory Usage", nil, {.Always_Auto_Resize}) {
+
+		ta := &bedbug.tracking_allocator
+		im.text("%s currently allocated", bb.bytes_formated_string(ta.current_memory_allocated))
+		im.separator()
+		im.text("%s peak allocated", bb.bytes_formated_string(ta.peak_memory_allocated))
+		im.text(
+			"%s total allocated | %d allocations",
+			bb.bytes_formated_string(ta.total_memory_allocated),
+			ta.total_allocation_count,
+		)
+		im.text("%s total freed | %d frees", bb.bytes_formated_string(ta.total_memory_freed), ta.total_free_count)
+
+		im.separator()
 	}
 
 	im.end()

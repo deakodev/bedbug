@@ -6,9 +6,9 @@ import bs "bedbug:layers/scene"
 
 logger_setup :: bc.logger_setup
 allocator_tracking_setup :: bc.allocator_tracking_setup
-allocator_tracking_clear :: bc.allocator_tracking_clear
-allocator_tracking_check :: bc.allocator_tracking_check
 allocator_tracking_cleanup :: bc.allocator_tracking_cleanup
+allocator_tracking_check :: bc.allocator_tracking_check
+bytes_formated_string :: bc.bytes_formated_string
 
 Scene :: bs.Scene
 scene_setup :: bs.setup
