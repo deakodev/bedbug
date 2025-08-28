@@ -19,20 +19,22 @@ editor_setup :: proc(bedbug: rawptr) -> (self: rawptr, type: typeid) {
 }
 
 @(export)
-editor_cleanup :: proc(bedbug: rawptr, self: rawptr) {
+editor_cleanup :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 
 	log.info("cleaning up editor...")
 	free(self)
+	return true
 }
 
 @(export)
-editor_update :: proc(bedbug: rawptr, self: rawptr) {
+editor_update :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 
 	// log.info("updating editor...")
+	return true
 }
 
 @(export)
-editor_draw :: proc(bedbug: rawptr, self: rawptr) {
+editor_draw :: proc(bedbug: rawptr, self: rawptr) -> (ok: bool) {
 
 	backend := &((^bb.Bedbug)(bedbug)).renderer.backend
 
@@ -63,4 +65,6 @@ editor_draw :: proc(bedbug: rawptr, self: rawptr) {
 	im.end()
 
 	// im.show_demo_window()
+
+	return true
 }

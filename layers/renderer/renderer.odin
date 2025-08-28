@@ -31,11 +31,13 @@ setup :: proc(renderer: ^Renderer) {
 	}
 }
 
-cleanup :: proc(renderer: ^Renderer) {
+cleanup :: proc(renderer: ^Renderer) -> (ok: bool) {
 
 	log.info("cleaning up renderer...")
 	log.assert(renderer != nil, "renderer pointer is nil.")
-	backend.cleanup(&renderer.backend)
+	backend.cleanup(&renderer.backend) or_return
+
+	return true
 }
 
 frame_prepare :: proc(renderer: ^Renderer) {

@@ -1,8 +1,7 @@
 package bedbug_runtime
 
-import "bedbug:core"
-import "bedbug:layers/renderer"
-import "bedbug:layers/scene"
+import core "bedbug:core"
+import renderer "bedbug:layers/renderer"
 
 import "base:runtime"
 import "core:fmt"
@@ -13,59 +12,41 @@ import "core:strings"
 Dynlib :: core.Dynlib
 Module :: core.Module
 Plugin :: core.Plugin
+Options :: core.Options
 
-Options :: struct {
-	window_title:  Maybe(cstring),
-	window_width:  Maybe(u32),
-	window_height: Maybe(u32),
-	target_fps:    Maybe(u32),
-	fullscreen:    bool,
-}
-
-g_default_options := Options {
-	window_title  = "Bedbug",
-	window_width  = 1200,
-	window_height = 800,
-	target_fps    = 60,
+@(private = "file")
+g_bedbug_stage: BedbugStage = .UNINITIALIZED
+BedbugStage :: enum u8 {
+	UNINITIALIZED,
+	INITIALIZED,
 }
 
 Bedbug :: struct {
-	core:     ^core.Core,
-	renderer: ^renderer.Renderer,
-	scene:    ^scene.Scene,
+	core:     core.Core,
+	renderer: renderer.Renderer,
 }
 
-setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) {
+setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) -> (ok: bool) {
 
-	log.info("setting up bedbug...")
 	log.ensure(bedbug != nil, "bedbug pointer is nil.")
 	log.ensure(plugin != nil, "bedbug plugin is nil.")
 
-	bedbug.core = new(core.Core)
-	core.set_callback(proc() -> ^core.Core {
+	if g_bedbug_stage != .UNINITIALIZED {
+		log.warn("Bedbug is already initialized.");return
+	}
+
+	core_callback :: proc() -> ^core.Core {
 		bedbug := cast(^Bedbug)context.user_ptr
 		log.assert(bedbug != nil, "bedbug pointer is nil.")
-		log.assert(bedbug.core != nil, "bedbug core pointer is nil.")
-		return bedbug.core
-	})
+		return &bedbug.core
+	}
 
-	options := options if options != nil else &g_default_options
-	title := options.window_title.? or_else g_default_options.window_title.?
-	width := options.window_width.? or_else g_default_options.window_width.?
-	height := options.window_height.? or_else g_default_options.window_height.?
-	fps := options.target_fps.? or_else g_default_options.target_fps.?
-	fullscreen := options.fullscreen
+	core.setup(&bedbug.core, options, core_callback)
 
-	bedbug.core.window = core.window_setup(title, width, height, fps, fullscreen)
+	// setup internal subsystem layers
+	renderer.setup(&bedbug.renderer)
 
-	core.timer_setup(&bedbug.core.timer, fps)
-
-	bedbug.renderer = new(renderer.Renderer)
-	renderer.setup(bedbug.renderer)
-
-	bedbug.scene = new(scene.Scene)
-	scene.setup(bedbug.scene)
-
+	// setup external plugin modules
 	lib_names := reflect.enum_field_names(T)
 	for &lib, index in plugin.libs {
 		lib.name = strings.to_lower(lib_names[index])
@@ -75,28 +56,34 @@ setup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T), options: ^Options) {
 		module.symbols = core.dynlib_load(&lib)
 		module.self, module.type = module.setup(bedbug)
 	}
+
+	g_bedbug_stage = .INITIALIZED
+	return true
 }
 
-cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
+cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 
-	log.info("cleaning up bedbug...")
-	log.assert(bedbug != nil, "bedbug pointer is nil.")
-	log.assert(plugin != nil, "bedbug plugin is nil.")
+	log.ensure(bedbug != nil, "bedbug pointer is nil.")
+	log.ensure(plugin != nil, "bedbug plugin is nil.")
+
+	if g_bedbug_stage != .INITIALIZED {
+		log.warn("Bedbug is not initialized.");return false
+	}
 
 	for &lib, index in plugin.libs {
 		module := plugin.modules[index]
-		module.cleanup(bedbug, module.self)
-		core.dynlib_unload(&lib)
+		module.cleanup(bedbug, module.self) or_return
+		core.dynlib_unload(&lib) or_return
 	}
 
-	renderer.cleanup(bedbug.renderer)
-	free(bedbug.renderer)
+	renderer.cleanup(&bedbug.renderer) or_return
 
-	core.window_cleanup()
-	free(bedbug.core)
+	core.cleanup() or_return
 
 	free(bedbug)
 
+	g_bedbug_stage = .UNINITIALIZED
+	return true
 }
 
 update :: proc(bedbug: ^Bedbug) {
@@ -114,16 +101,18 @@ should_run :: proc() -> bool {
 	return !core.window_should_close()
 }
 
-run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
+run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 
-	log.info("running bedbug...")
-	log.assert(bedbug != nil, "bedbug pointer is nil.")
-	log.assert(plugin != nil, "bedbug plugin is nil.")
+	log.ensure(bedbug != nil, "bedbug pointer is nil.")
+	log.ensure(plugin != nil, "bedbug plugin is nil.")
+
+	if g_bedbug_stage != .INITIALIZED {
+		log.warn("Bedbug is not initialized.");return false
+	}
 
 	loop: for should_run() {
-
 		if !bedbug.core.window.iconified {
-			renderer.frame_prepare(bedbug.renderer)
+			renderer.frame_prepare(&bedbug.renderer)
 		}
 
 		update(bedbug)
@@ -144,32 +133,25 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) {
 			module.draw(bedbug, module.self)
 		}
 
-		renderer.frame_end(bedbug.renderer)
+		renderer.frame_end(&bedbug.renderer)
 
-		if core.dynlib_should_reload(&plugin.libs[PROJECT]) {
-			game_module := plugin.modules[PROJECT]
-			game_module.symbols = core.dynlib_load(&plugin.libs[PROJECT])
+		if core.dynlib_should_reload(&plugin.libs[plugin.client]) {
+			client_module := plugin.modules[plugin.client]
+			client_module.symbols = core.dynlib_load(&plugin.libs[plugin.client])
 		}
 
-		game_should_reset := core.input_key_pressed(.KEY_F5)
-		if game_should_reset {
-			game_module := &plugin.modules[PROJECT]
-			game_module.cleanup(bedbug, game_module.self)
-			game_module.self, game_module.type = game_module.setup(bedbug)
+		client_should_reset := core.input_key_pressed(.KEY_F5)
+		if client_should_reset {
+			client_module := &plugin.modules[plugin.client]
+			client_module.cleanup(bedbug, client_module.self)
+			client_module.self, client_module.type = client_module.setup(bedbug)
 		}
 
 		poll_events(bedbug)
 
 		free_all(context.temp_allocator)
-		core.allocator_check()
+		core.allocator_tracking_check()
 	}
+
+	return true
 }
-
-logger_setup :: core.logger_setup
-allocator_setup :: core.allocator_setup
-allocator_clear :: core.allocator_clear
-allocator_check :: core.allocator_check
-allocator_cleanup :: core.allocator_cleanup
-
-Scene :: scene.Scene
-entity_create :: scene.entity_create

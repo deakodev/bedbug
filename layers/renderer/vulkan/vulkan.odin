@@ -54,7 +54,7 @@ setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 	return true
 }
 
-cleanup :: proc(backend: ^Vulkan) {
+cleanup :: proc(backend: ^Vulkan) -> (ok: bool) {
 
 	log.ensure(backend != nil, "failed with null backend.")
 	if !backend.initialized {log.warn("failed to cleanup, backend not initialized.");return}
@@ -72,6 +72,7 @@ cleanup :: proc(backend: ^Vulkan) {
 	instance_cleanup(backend)
 
 	backend.initialized = false
+	return true
 }
 
 update :: proc(backend: ^Vulkan) -> (ok: bool) {

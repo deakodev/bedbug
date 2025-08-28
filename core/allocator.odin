@@ -7,14 +7,14 @@ import "core:mem"
 @(private = "file")
 g_tracking_allocator: mem.Tracking_Allocator
 
-allocator_setup :: proc() -> runtime.Allocator {
+allocator_tracking_setup :: proc() -> runtime.Allocator {
 
 	mem.tracking_allocator_init(&g_tracking_allocator, context.allocator)
 	return mem.tracking_allocator(&g_tracking_allocator)
 }
 
 
-allocator_clear :: proc() {
+allocator_tracking_clear :: proc() {
 
 	for _, value in g_tracking_allocator.allocation_map {
 		log.warnf("%v: Leaked %v bytes\n", value.location, value.size)
@@ -23,7 +23,7 @@ allocator_clear :: proc() {
 	mem.tracking_allocator_clear(&g_tracking_allocator)
 }
 
-allocator_cleanup :: proc() {
+allocator_tracking_cleanup :: proc() {
 
 	free_all(context.temp_allocator)
 
@@ -44,7 +44,7 @@ allocator_cleanup :: proc() {
 	mem.tracking_allocator_destroy(&g_tracking_allocator)
 }
 
-allocator_check :: proc() {
+allocator_tracking_check :: proc() {
 
 	if len(g_tracking_allocator.bad_free_array) > 0 {
 		for b in g_tracking_allocator.bad_free_array {

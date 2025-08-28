@@ -7,7 +7,7 @@ entity_create :: proc(scene: ^Scene) -> ecs.entity_id {
 	eid: ecs.entity_id
 	err: ecs.Error
 
-	eid, err = ecs.database__create_entity(&scene.registry)
+	eid, err = ecs.database__create_entity(&scene.database)
 	if err != nil {report_error(err)}
 
 	return eid

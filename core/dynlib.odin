@@ -10,9 +10,9 @@ import "core:time"
 DynlibSymbols :: struct {
 	handle:  dynlib.Library,
 	setup:   proc(bedbug: rawptr) -> (self: rawptr, type: typeid),
-	cleanup: proc(bedbug: rawptr, self: rawptr),
-	update:  proc(bedbug: rawptr, self: rawptr),
-	draw:    proc(bedbug: rawptr, self: rawptr),
+	cleanup: proc(bedbug: rawptr, self: rawptr) -> (ok: bool),
+	update:  proc(bedbug: rawptr, self: rawptr) -> (ok: bool),
+	draw:    proc(bedbug: rawptr, self: rawptr) -> (ok: bool),
 }
 
 Dynlib :: struct {
@@ -47,7 +47,7 @@ dynlib_load :: proc(lib: ^Dynlib) -> ^DynlibSymbols {
 	return current_version
 }
 
-dynlib_unload :: proc(lib: ^Dynlib) {
+dynlib_unload :: proc(lib: ^Dynlib) -> (ok: bool) {
 
 	log.assert(lib != nil, "failed to unload. Dynlib is nil.")
 
@@ -55,19 +55,21 @@ dynlib_unload :: proc(lib: ^Dynlib) {
 		if lib != nil {
 			if !dynlib.unload_library(version.handle) {
 				log.errorf("failed unloading lib: {0}", dynlib.last_error())
-				return
+				return false
 			}
 		}
 
 		version_path := fmt.tprintf("%s/%s_%d.%s", BUILD_DIR, lib.name, index, dynlib.LIBRARY_FILE_EXTENSION)
 		if os.remove(version_path) != nil {
 			log.errorf("failed to remove {0}", version_path)
-			return
+			return false
 		}
 	}
 
 	delete(lib.versions)
 	delete(lib.name)
+
+	return true
 }
 
 dynlib_copy :: proc(src_path, dst_path: string) -> bool {

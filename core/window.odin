@@ -15,7 +15,6 @@ Window :: struct {
 }
 
 window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscreen: bool) -> (window: Window) {
-	log.info("setting up window...")
 
 	glfw.SetErrorCallback(proc "c" (code: i32, description: cstring) {
 		context = g_foreign_context
@@ -94,12 +93,15 @@ window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscre
 	return window
 }
 
-window_cleanup :: proc() {
+window_cleanup :: proc() -> (ok: bool) {
 
 	if core().window.handle != nil {
 		glfw.DestroyWindow(core().window.handle)
 		glfw.Terminate()
+		return true
 	}
+
+	return false
 }
 
 window_poll_events :: proc() {

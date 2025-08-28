@@ -9,4 +9,5 @@ Module :: struct {
 Plugin :: struct($T: typeid) {
 	libs:    [T]Dynlib,
 	modules: [T]Module,
+	client:  T,
 }

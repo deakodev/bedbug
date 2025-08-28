@@ -1,41 +1,36 @@
 package bedbug_runtime
 
-import "core:encoding/entity"
+import config "../modules"
 import "core:log"
-
-PROJECT :: Modules.VIEWER
-Modules :: enum u8 {
-	VIEWER,
-	EDITOR,
-}
-
-import ecs "bedbug:vendor/ode_ecs"
-
-my_ecs: ecs.Database
 
 main :: proc() {
 
+	context.logger = logger_setup()
+
 	when ODIN_DEBUG {
-		context.logger = logger_setup()
-		context.allocator = allocator_setup()
-		defer allocator_cleanup()
+		context.allocator = allocator_tracking_setup()
+		defer allocator_tracking_cleanup()
 	}
 
-	bedbug_ptr := new(Bedbug)
-	context.user_ptr = bedbug_ptr
+	bedbug := new(Bedbug)
+	context.user_ptr = bedbug
 
-	ecs.init(&my_ecs, entities_cap = 10, allocator = context.allocator)
+	libs: [config.Modules]Dynlib
+	modules: [config.Modules]Module
+	plugin := Plugin(config.Modules){libs, modules, config.CLIENT}
 
-	libs: [Modules]Dynlib
-	modules: [Modules]Module
-	plugin := Plugin(Modules){libs, modules}
-	options := Options {
-		// fullscreen = true,
+	ok := setup(bedbug, &plugin, &config.OPTIONS)
+	if !ok {
+		log.panic("failed to initialize bedbug.")
 	}
 
-	setup(bedbug_ptr, &plugin, &options)
+	ok = run(bedbug, &plugin)
+	if !ok {
+		log.panic("failed to run bedbug.")
+	}
 
-	run(bedbug_ptr, &plugin)
-
-	cleanup(bedbug_ptr, &plugin)
+	ok = cleanup(bedbug, &plugin)
+	if !ok {
+		log.panic("failed to cleanup bedbug.")
+	}
 }

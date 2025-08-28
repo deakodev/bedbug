@@ -14,54 +14,38 @@ import "core:time"
 import ecs "bedbug:vendor/ode_ecs"
 import oc "bedbug:vendor/ode_ecs/ode_core"
 
-Transform :: struct {
-	position: bb.vec3,
-	rotation: bb.vec3,
-	scale:    bb.vec3,
-}
-
-MeshRef :: struct {
-	handle: u64,
-	flags:  bit_set[enum {
-		Visable,
-	}],
-}
-
-MaterialRef :: struct {
-	handle: u64,
-	flags:  bit_set[enum {
-		Visable,
-	}],
-}
-
 Scene :: struct {
-	registry:    ecs.Database,
-	transforms:  ecs.Table(Transform),
-	meshes:      ecs.Table(MeshRef),
-	materials:   ecs.Table(MaterialRef),
+	database:    ecs.Database,
+	tags:        ecs.Table(TagComponent),
+	transforms:  ecs.Table(TransformComponent),
+	// meshes:      ecs.Table(MeshComponent),
+	// materials:   ecs.Table(MaterialComponent),
 	renderables: ecs.View,
 }
 
 setup :: proc(scene: ^Scene) {
 
 	err: ecs.Error
-	allocator := context.allocator
 
-	err = ecs.init(&scene.registry, 100_000, allocator) // Maximum 100K entities
+	// ecs_setup()
+
+	err = ecs.init(&scene.database, 100_000, context.allocator) // Maximum 100K entities
 	if err != nil {report_error(err);return}
 
-	err = ecs.table_init(&scene.transforms, &scene.registry, 100_000) // Maximum 100K Transform components
+	err = ecs.table_init(&scene.tags, &scene.database, 100_000) // Maximum 100K Transform components
 	if err != nil {report_error(err);return}
 
-	err = ecs.view_init(&scene.renderables, &scene.registry, {&scene.transforms})
+	err = ecs.table_init(&scene.transforms, &scene.database, 100_000) // Maximum 100K Transform components
 	if err != nil {report_error(err);return}
 
+	err = ecs.view_init(&scene.renderables, &scene.database, {&scene.transforms})
+	if err != nil {report_error(err);return}
 
 }
 
 cleanup :: proc(scene: ^Scene) {
 
-	err := ecs.terminate(&scene.registry)
+	err := ecs.terminate(&scene.database)
 	if err != nil {report_error(err)}
 }
 
@@ -72,26 +56,27 @@ report_error :: proc(err: ecs.Error, loc := #caller_location) {
 
 create_entities_with_random_components_and_data :: proc(scene: ^Scene, number_of_components_to_create: int) {
 
-	pos: ^Transform
+	pos: ^TransformComponent
 	err: ecs.Error
 
 	eid: ecs.entity_id
 	eid_components_count: int
 	for i := 0; i < number_of_components_to_create; i += 1 {
-		eid, err = ecs.database__create_entity(&scene.registry)
+		eid, err = ecs.database__create_entity(&scene.database)
 		if err != nil {report_error(err);return}
 
-		pos, err = ecs.add_component(&scene.transforms, eid)
-		if err != nil {report_error(err);fmt.println(eid);return}
+		// pos, err = ecs.add_component(&scene.transforms, eid)
+		// if err != nil {report_error(err);fmt.println(eid);return}
 	}
 }
 
 destroy_entities_in_range :: proc(scene: ^Scene, start_ix, end_ix: int) {
+
 	assert(end_ix > start_ix)
 	assert(start_ix >= 0)
 
 	for i := start_ix; i < end_ix; i += 1 {
-		eid := ecs.get_entity(&scene.registry, i)
-		ecs.database__destroy_entity(&scene.registry, eid)
+		eid := ecs.get_entity(&scene.database, i)
+		ecs.database__destroy_entity(&scene.database, eid)
 	}
 }
