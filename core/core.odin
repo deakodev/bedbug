@@ -19,8 +19,9 @@ DEFAULT_OPTIONS: Options = {
 }
 
 Core :: struct {
-	window: Window,
-	timer:  Timer,
+	timer:          Timer,
+	window:         Window,
+	event_registry: EventRegistry,
 }
 
 core: proc() -> ^Core // callback core().xxx for layer access to core data
@@ -28,6 +29,8 @@ core: proc() -> ^Core // callback core().xxx for layer access to core data
 setup :: proc(core_ptr: ^Core, options: ^Options, callback: proc() -> ^Core) {
 
 	core = callback
+
+	event_setup(&core_ptr.event_registry)
 
 	options := options if options != nil else &DEFAULT_OPTIONS
 	title := options.window_title.? or_else DEFAULT_OPTIONS.window_title.?
@@ -41,9 +44,10 @@ setup :: proc(core_ptr: ^Core, options: ^Options, callback: proc() -> ^Core) {
 	timer_setup(&core_ptr.timer, fps)
 }
 
-cleanup :: proc() -> (ok: bool) {
+cleanup :: proc(core: ^Core) -> (ok: bool) {
 
-	window_cleanup() or_return
+	window_cleanup(&core.window)
+	event_cleanup(&core.event_registry)
 	return true
 }
 

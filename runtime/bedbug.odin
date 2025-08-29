@@ -80,7 +80,7 @@ cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 
 	renderer.cleanup(&bedbug.renderer) or_return
 
-	core.cleanup() or_return
+	core.cleanup(&bedbug.core) or_return
 
 	g_bedbug_stage = .UNINITIALIZED
 	return true

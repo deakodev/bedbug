@@ -93,10 +93,10 @@ window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscre
 	return window
 }
 
-window_cleanup :: proc() -> (ok: bool) {
+window_cleanup :: proc(window: ^Window) -> (ok: bool) {
 
-	if core().window.handle != nil {
-		glfw.DestroyWindow(core().window.handle)
+	if window.handle != nil {
+		glfw.DestroyWindow(window.handle)
 		glfw.Terminate()
 		return true
 	}
