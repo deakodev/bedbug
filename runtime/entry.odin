@@ -1,7 +1,8 @@
 package bedbug_runtime
 
-import config "../modules"
+import config "../plugins"
 import "core:log"
+
 
 main :: proc() {
 

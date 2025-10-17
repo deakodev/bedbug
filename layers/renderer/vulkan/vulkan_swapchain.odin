@@ -188,7 +188,7 @@ swapchain_extent_select :: proc(capabilities: vk.SurfaceCapabilitiesKHR) -> vk.E
 		return capabilities.currentExtent
 	}
 
-	width, height := glfw.GetFramebufferSize(bb.core().window.handle)
+	width, height := glfw.GetFramebufferSize(bb.core_get().window.handle)
 	return {
 		width = clamp(u32(width), capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
 		height = clamp(u32(height), capabilities.minImageExtent.height, capabilities.maxImageExtent.height),

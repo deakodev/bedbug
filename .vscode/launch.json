@@ -11,5 +11,25 @@
             "args": [],
             "cwd": "${workspaceFolder}"
         },
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "Build Plugins",
+            "name": "Run Meta",
+            "program": "${workspaceFolder}/build/win32/debug/sandbox.exe",
+            "console": "externalTerminal",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "Build Sandbox",
+            "name": "Run Sandbox",
+            "program": "${workspaceFolder}/build/win32/debug/sandbox.exe",
+            "console": "externalTerminal",
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
     ]
 }

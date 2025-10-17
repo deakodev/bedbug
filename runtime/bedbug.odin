@@ -1,6 +1,7 @@
 package bedbug_runtime
 
 import core "bedbug:core"
+import "bedbug:layers"
 import renderer "bedbug:layers/renderer"
 
 import "base:runtime"
@@ -88,7 +89,7 @@ cleanup :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 
 update :: proc(bedbug: ^Bedbug) {
 
-	core.timer_tick(&bedbug.core.timer)
+	core.timer_update(&bedbug.core.timer)
 }
 
 poll_events :: proc(bedbug: ^Bedbug) {
@@ -123,7 +124,7 @@ run :: proc(bedbug: ^Bedbug, plugin: ^Plugin($T)) -> (ok: bool) {
 
 		if bedbug.core.window.iconified {
 			core.window_wait_events()
-			core.timer_setup(&bedbug.core.timer, bedbug.core.window.fps) // todo: event callback to limit triggering?
+			core.timer_setup(&bedbug.core.timer, bedbug.core.window.fps)
 			continue loop
 		}
 

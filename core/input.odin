@@ -2,6 +2,12 @@ package core
 
 import "vendor:glfw"
 
+Button :: enum {
+	BUTTON_LEFT   = glfw.MOUSE_BUTTON_LEFT,
+	BUTTON_RIGHT  = glfw.MOUSE_BUTTON_RIGHT,
+	BUTTON_MIDDLE = glfw.MOUSE_BUTTON_MIDDLE,
+}
+
 Keyboard :: struct {
 	current_key_state:  [Key.KEY_MAX_COUNT]KeyState,
 	previous_key_state: [Key.KEY_MAX_COUNT]KeyState,
@@ -152,7 +158,7 @@ input_key_pressed :: proc(key: Key) -> (pressed: bool) {
 	@(static) keyboard := Keyboard{}
 	for i in 0 ..< u32(Key.KEY_MAX_COUNT) {
 		keyboard.previous_key_state[i] = keyboard.current_key_state[i]
-		keyboard.current_key_state[i] = KeyState(glfw.GetKey(core().window.handle, i32(i)))
+		keyboard.current_key_state[i] = KeyState(glfw.GetKey(core_get().window.handle, i32(i)))
 	}
 
 	if keyboard.previous_key_state[key] == .RELEASE {

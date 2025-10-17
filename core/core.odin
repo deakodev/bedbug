@@ -1,47 +1,50 @@
 package core
 
+import "base:runtime"
 import "core:log"
 import "core:text/edit"
 
-Options :: struct {
-	window_title:  Maybe(cstring),
-	window_width:  Maybe(u32),
-	window_height: Maybe(u32),
-	target_fps:    Maybe(u32),
-	fullscreen:    bool,
-}
+@(private = "package")
+g_context: runtime.Context
 
-DEFAULT_OPTIONS: Options = {
-	window_title  = "Bedbug",
-	window_width  = 1200,
-	window_height = 800,
-	target_fps    = 60,
+Options :: struct {
+	window_title:  cstring,
+	window_width:  u32,
+	window_height: u32,
+	target_fps:    u32,
+	fullscreen:    bool,
 }
 
 Core :: struct {
 	timer:          Timer,
 	window:         Window,
 	event_registry: EventRegistry,
+	running:        bool,
 }
 
-core: proc() -> ^Core // callback core().xxx for layer access to core data
+Stage :: enum u8 {
+	UNINITIALIZED,
+	INITIALIZED,
+}
+
+core_get: proc() -> ^Core // callback core_get().xxx for layer access to core data
 
 setup :: proc(core_ptr: ^Core, options: ^Options, callback: proc() -> ^Core) {
 
-	core = callback
+	g_context = context
+	core_get = callback
 
-	event_setup(&core_ptr.event_registry)
+	// event_setup(&core_ptr.event_registry)
 
-	options := options if options != nil else &DEFAULT_OPTIONS
-	title := options.window_title.? or_else DEFAULT_OPTIONS.window_title.?
-	width := options.window_width.? or_else DEFAULT_OPTIONS.window_width.?
-	height := options.window_height.? or_else DEFAULT_OPTIONS.window_height.?
-	fps := options.target_fps.? or_else DEFAULT_OPTIONS.target_fps.?
-	fullscreen := options.fullscreen
+	// core_ptr.window = window_setup(
+	// 	options.window_title,
+	// 	options.window_width,
+	// 	options.window_height,
+	// 	options.target_fps,
+	// 	options.fullscreen,
+	// )
 
-	core_ptr.window = window_setup(title, width, height, fps, fullscreen)
-
-	timer_setup(&core_ptr.timer, fps)
+	// timer_setup(&core_ptr.timer, options.target_fps)
 }
 
 cleanup :: proc(core: ^Core) -> (ok: bool) {
@@ -49,6 +52,10 @@ cleanup :: proc(core: ^Core) -> (ok: bool) {
 	window_cleanup(&core.window)
 	event_cleanup(&core.event_registry)
 	return true
+}
+
+global_context :: proc() -> runtime.Context {
+	return g_context
 }
 
 when ODIN_OS == .Windows {

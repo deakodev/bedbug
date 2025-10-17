@@ -1,11 +1,7 @@
 package core
 
-import "base:runtime"
 import "core:log"
 import "vendor:glfw"
-
-@(private = "file")
-g_foreign_context: runtime.Context
 
 Window :: struct {
 	handle:    glfw.WindowHandle,
@@ -17,7 +13,7 @@ Window :: struct {
 window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscreen: bool) -> (window: Window) {
 
 	glfw.SetErrorCallback(proc "c" (code: i32, description: cstring) {
-		context = g_foreign_context
+		context = g_context
 		log.errorf("glfw %i: %s", code, description)
 	})
 
@@ -59,7 +55,7 @@ window_setup :: proc(title: cstring, width: u32, height: u32, fps: u32, fullscre
 		glfw.SetWindowMonitor(window.handle, monitor, 0, 0, mode.width, mode.height, mode.refresh_rate)
 	}
 
-	glfw.SetWindowUserPointer(window.handle, core())
+	glfw.SetWindowUserPointer(window.handle, core_get())
 
 	glfw.SetFramebufferSizeCallback(window.handle, proc "c" (handle: glfw.WindowHandle, _, _: i32) {
 		core := cast(^Core)glfw.GetWindowUserPointer(handle)
@@ -111,7 +107,7 @@ window_poll_events :: proc() {
 
 window_should_close :: proc() -> bool {
 
-	return bool(glfw.WindowShouldClose(core().window.handle))
+	return bool(glfw.WindowShouldClose(core_get().window.handle))
 }
 
 window_wait_events :: proc() {

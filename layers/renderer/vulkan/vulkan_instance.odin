@@ -73,7 +73,7 @@ instance_setup :: proc(backend: ^Vulkan) -> (ok: bool) {
 	}
 
 	vk_ok(
-		glfw.CreateWindowSurface(backend.instance.handle, bb.core().window.handle, nil, &backend.instance.surface),
+		glfw.CreateWindowSurface(backend.instance.handle, bb.core_get().window.handle, nil, &backend.instance.surface),
 	) or_return
 
 	return true

@@ -1,12 +1,9 @@
 {
 	"$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
 	"collections": [
-		{ "name": "bedbug", "path": "." },
-		// { "name": "core", "path": "core" },
-		// { "name": "futon", "path": "futon" },
-		// { "name": "game", "path": "game" },
-		// { "name": "renderer", "path": "modules\\renderer" },
+		{ "name": "bedbug", "path": "." }
 	],
+	"checker_args": "",
 	"enable_semantic_tokens": true,
 	"enable_document_symbols": true,
 	"enable_hover": true,

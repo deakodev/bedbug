@@ -8,7 +8,7 @@ Viewer :: struct {
 	scene: br.Scene,
 }
 
-@(export)
+@(bedbug_export)
 viewer_setup :: proc(bedbug: rawptr) -> (self: rawptr, type: typeid) {
 
 	log.info("setting up viewer...")

@@ -39,7 +39,7 @@ imgui_setup :: proc(self: ^Vulkan) -> (ok: bool) {
 	vk_ok(vk.CreateDescriptorPool(self.device.handle, &pool_info, nil, &imgui_pool)) or_return
 
 	self.imgui = im.create_context()
-	im_glfw.init_for_vulkan(bb.core().window.handle, true) or_return
+	im_glfw.init_for_vulkan(bb.core_get().window.handle, true) or_return
 
 	init_info := im_vk.Init_Info {
 		api_version = vk.API_VERSION_1_3,
@@ -70,7 +70,7 @@ imgui_setup :: proc(self: ^Vulkan) -> (ok: bool) {
 
 	im_vk.init(&init_info)
 
-	scale, _ := glfw.GetWindowContentScale(bb.core().window.handle)
+	scale, _ := glfw.GetWindowContentScale(bb.core_get().window.handle)
 	im_io := im.get_io()
 	im_io.font_global_scale = scale
 	im_style := im.get_style()

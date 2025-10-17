@@ -12,5 +12,25 @@
       },
       "problemMatcher": []
     },
+     {
+      "label": "Build Plugins",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/build_plugins.bat",
+      "args": ["debug"],
+      "group": {
+        "kind": "build",
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Sandbox",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/build_sandbox.bat",
+      "args": ["debug"],
+      "group": {
+        "kind": "build",
+      },
+      "problemMatcher": []
+    },
   ]
 }
